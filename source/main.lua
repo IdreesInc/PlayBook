@@ -1,7 +1,15 @@
 local graphics = playdate.graphics
-playdate.display.setRefreshRate(60)
+-- 50 Hz is max refresh rate
+playdate.display.setRefreshRate(50)
 
--- set the font
+-- Read something from the filesystem
+
+local file = playdate.file.open("test.txt")
+local MAX_SIZE = 4 * 1024 * 1024;
+local text = file:read(MAX_SIZE)
+print(text)
+
+-- Load the font
 local font = graphics.font.new("fonts/Roobert-11-Medium")
 assert(font)
 graphics.setFont(font)
