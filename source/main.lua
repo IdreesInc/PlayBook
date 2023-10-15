@@ -7,8 +7,8 @@ playdate.display.setRefreshRate(50)
 -- Constants
 local MAX_FILE_SIZE = 4 * 1024 * 1024
 local MARGIN = 25
-local CIRCLE_MARGIN = 8
-local CIRCLE_RADIUS = 4
+local CIRCLE_MARGIN = 9
+local CIRCLE_RADIUS = 5
 local DEVICE_WIDTH = 400
 local DEVICE_HEIGHT = 240
 
@@ -52,11 +52,11 @@ function drawText()
 	for i = start, stop do
 		local y = flooredOffset + i * lineHeight
 		graphics.drawText(lines[i], MARGIN, y)
-		graphics.fillCircleAtPoint(CIRCLE_MARGIN, y + lineHeight * 0.5, CIRCLE_RADIUS)
-		graphics.fillCircleAtPoint(DEVICE_WIDTH - CIRCLE_MARGIN, y + lineHeight * 0.5, CIRCLE_RADIUS)
+		graphics.drawCircleAtPoint(CIRCLE_MARGIN, y + lineHeight * 0.5, CIRCLE_RADIUS)
+		graphics.drawCircleAtPoint(DEVICE_WIDTH - CIRCLE_MARGIN, y + lineHeight * 0.5, CIRCLE_RADIUS)
 	end
 	graphics.setDitherPattern(0.5)
-	local lineX = CIRCLE_MARGIN + CIRCLE_RADIUS * 2 + 1
+	local lineX = CIRCLE_MARGIN + CIRCLE_RADIUS * 2 - 1
 	graphics.drawLine(lineX, 0, lineX, DEVICE_HEIGHT)
 	lineX = DEVICE_WIDTH - lineX
 	graphics.drawLine(lineX, 0, lineX, DEVICE_HEIGHT)
