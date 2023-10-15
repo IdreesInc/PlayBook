@@ -11,10 +11,13 @@ local CIRCLE_MARGIN = 9
 local CIRCLE_RADIUS = 5
 local DEVICE_WIDTH = 400
 local DEVICE_HEIGHT = 240
+local VOLUME_ACCELERATION = 0.05
+local MAX_VOLUME = 0.02
 
 -- Variables
 local offset = 0;
 local lines = {}
+local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 local lineHeight = 0
 local inverted = false
 
@@ -35,11 +38,18 @@ function init()
 
 	-- Set the background color
 	graphics.setBackgroundColor(graphics.kColorWhite)
+
+	-- Set up scrolling sound
+	sound:setVolume(0)
+	sound:playNote(850)
 end
 
 -- Update loop
 function playdate.update()
 	drawText()
+	-- Update the sound
+	local vol = math.min(math.abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
+	sound:setVolume(vol)
 end
 
 function drawText()
