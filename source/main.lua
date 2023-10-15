@@ -1,10 +1,14 @@
+import 'CoreLibs/graphics.lua'
+
 local graphics = playdate.graphics
 -- 50 Hz is max refresh rate
 playdate.display.setRefreshRate(50)
 
 -- Constants
 local MAX_FILE_SIZE = 4 * 1024 * 1024
-local MARGIN = 30
+local MARGIN = 25
+local CIRCLE_MARGIN = 8
+local CIRCLE_RADIUS = 4
 local DEVICE_WIDTH = 400
 local DEVICE_HEIGHT = 240
 
@@ -12,6 +16,7 @@ local DEVICE_HEIGHT = 240
 local offset = 0;
 local lines = {}
 local lineHeight = 0
+local inverted = false
 
 function init()
 	-- Load the font
@@ -26,7 +31,7 @@ function init()
 
 	-- Split the text into lines
 	lines = splitText(text)
-	lineHeight = graphics.getTextSize("A") * 1.5
+	lineHeight = graphics.getTextSize("A") * 1.7
 
 	-- Set the background color
 	graphics.setBackgroundColor(graphics.kColorWhite)
@@ -34,7 +39,28 @@ end
 
 -- Update loop
 function playdate.update()
-	updateText()
+	drawText()
+end
+
+function drawText()
+	graphics.clear()
+	graphics.drawText(playdate.getCrankPosition(), MARGIN, offset)
+	-- Only draw the lines that are visible
+	local start = math.max(math.floor(-offset / lineHeight), 1)
+	local stop = math.min(start + math.floor(DEVICE_HEIGHT / lineHeight) + 1, #lines)
+	local flooredOffset = math.floor(offset)
+	for i = start, stop do
+		local y = flooredOffset + i * lineHeight
+		graphics.drawText(lines[i], MARGIN, y)
+		graphics.fillCircleAtPoint(CIRCLE_MARGIN, y + lineHeight * 0.5, CIRCLE_RADIUS)
+		graphics.fillCircleAtPoint(DEVICE_WIDTH - CIRCLE_MARGIN, y + lineHeight * 0.5, CIRCLE_RADIUS)
+	end
+	graphics.setDitherPattern(0.5)
+	local lineX = CIRCLE_MARGIN + CIRCLE_RADIUS * 2 + 1
+	graphics.drawLine(lineX, 0, lineX, DEVICE_HEIGHT)
+	lineX = DEVICE_WIDTH - lineX
+	graphics.drawLine(lineX, 0, lineX, DEVICE_HEIGHT)
+	graphics.setColor(graphics.kColorBlack)
 end
 
 -- Split text into lines with a maximum width of 400 - 2 * MARGIN
@@ -73,19 +99,6 @@ function split(text)
 	return string.gmatch(newText, "%S+")
 end
 
--- Print the text
-function updateText()
-	graphics.clear()
-	graphics.drawText(playdate.getCrankPosition(), MARGIN, offset)
-	-- Only draw the lines that are visible
-	local start = math.max(math.floor(-offset / lineHeight), 1)
-	local stop = math.min(start + math.floor(DEVICE_HEIGHT / lineHeight), #lines)
-	local flooredOffset = math.floor(offset)
-	for i = start, stop do
-		graphics.drawText(lines[i], MARGIN, flooredOffset + i * lineHeight)
-	end
-end
-
 -- Register input callbacks
 function playdate.cranked(change, acceleratedChange)
 	-- print("cranked", change, acceleratedChange)
@@ -114,6 +127,8 @@ end
 
 function playdate.BButtonDown()
 	print("B")
+	inverted = not inverted
+	playdate.display.setInverted(inverted)
 end
 
 init()
