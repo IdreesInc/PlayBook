@@ -12,7 +12,8 @@ local CIRCLE_RADIUS = 5
 local DEVICE_WIDTH = 400
 local DEVICE_HEIGHT = 240
 local VOLUME_ACCELERATION = 0.05
-local MAX_VOLUME = 0.02
+local MAX_VOLUME = 0.025
+local CRANK_SCROLL_SPEED = 1.5
 local BTN_SCROLL_SPEED = 4
 
 -- Variables
@@ -22,6 +23,7 @@ local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 local lineHeight = 0
 local inverted = false
 local directionHeld = 0
+-- local pattern = graphics.image.new("pattern")
 
 function init()
 	-- Load the font
@@ -55,6 +57,7 @@ function playdate.update()
 	sound:setVolume(vol)
 end
 
+
 function drawText()
 	graphics.clear()
 	graphics.drawText(playdate.getCrankPosition(), MARGIN, offset)
@@ -74,6 +77,11 @@ function drawText()
 	lineX = DEVICE_WIDTH - lineX
 	graphics.drawLine(lineX, 0, lineX, DEVICE_HEIGHT)
 	graphics.setColor(graphics.kColorBlack)
+	-- local patternMargin = -1
+	-- for i=-1, math.ceil(DEVICE_HEIGHT / pattern.height) do
+		-- pattern:draw(patternMargin, i * pattern.height + flooredOffset % pattern.height)
+		-- pattern:draw(DEVICE_WIDTH - pattern.width - patternMargin, i * pattern.height + flooredOffset % pattern.height, -1)
+	-- end
 end
 
 -- Split text into lines with a maximum width of 400 - 2 * MARGIN
@@ -115,7 +123,7 @@ end
 -- Register input callbacks
 function playdate.cranked(change, acceleratedChange)
 	-- print("cranked", change, acceleratedChange)
-	offset = offset + change
+	offset = offset + change * CRANK_SCROLL_SPEED
 end
 
 function playdate.upButtonDown()
