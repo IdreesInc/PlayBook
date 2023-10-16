@@ -13,6 +13,7 @@ local DEVICE_WIDTH = 400
 local DEVICE_HEIGHT = 240
 local VOLUME_ACCELERATION = 0.05
 local MAX_VOLUME = 0.02
+local BTN_SCROLL_SPEED = 4
 
 -- Variables
 local offset = 0;
@@ -20,6 +21,7 @@ local lines = {}
 local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 local lineHeight = 0
 local inverted = false
+local directionHeld = 0
 
 function init()
 	-- Load the font
@@ -34,7 +36,7 @@ function init()
 
 	-- Split the text into lines
 	lines = splitText(text)
-	lineHeight = graphics.getTextSize("A") * 1.7
+	lineHeight = graphics.getTextSize("A") * 1.8
 
 	-- Set the background color
 	graphics.setBackgroundColor(graphics.kColorWhite)
@@ -47,6 +49,7 @@ end
 -- Update loop
 function playdate.update()
 	drawText()
+	offset = offset + directionHeld * BTN_SCROLL_SPEED
 	-- Update the sound
 	local vol = math.min(math.abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
 	sound:setVolume(vol)
@@ -117,10 +120,20 @@ end
 
 function playdate.upButtonDown()
 	print("up")
+	directionHeld = 1
+end
+
+function playdate.upButtonUp()
+	directionHeld = 0
 end
 
 function playdate.downButtonDown()
 	print("down")
+	directionHeld = -1
+end
+
+function playdate.downButtonUp()
+	directionHeld = 0
 end
 
 function playdate.leftButtonDown()
