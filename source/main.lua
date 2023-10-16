@@ -6,15 +6,13 @@ playdate.display.setRefreshRate(50)
 
 -- Constants
 local MAX_FILE_SIZE = 4 * 1024 * 1024
-local MARGIN = 25
-local CIRCLE_MARGIN = 8
-local CIRCLE_RADIUS = 5
+local MARGIN = 23
 local DEVICE_WIDTH = 400
 local DEVICE_HEIGHT = 240
 local VOLUME_ACCELERATION = 0.05
 local MAX_VOLUME = 0.025
 local CRANK_SCROLL_SPEED = 1.5
-local BTN_SCROLL_SPEED = 4
+local BTN_SCROLL_SPEED = 5
 
 -- Variables
 local offset = 0;
@@ -38,7 +36,7 @@ function init()
 
 	-- Split the text into lines
 	lines = splitText(text)
-	lineHeight = graphics.getTextSize("A") * 1.8
+	lineHeight = graphics.getTextSize("A") * 1.9
 
 	-- Set the background color
 	graphics.setBackgroundColor(graphics.kColorWhite)
