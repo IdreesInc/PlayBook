@@ -6,7 +6,7 @@ playdate.display.setRefreshRate(50)
 
 -- Constants
 local MAX_FILE_SIZE = 4 * 1024 * 1024
-local MARGIN = 23
+local MARGIN = 24
 local DEVICE_WIDTH = 400
 local DEVICE_HEIGHT = 240
 local VOLUME_ACCELERATION = 0.05
@@ -25,7 +25,7 @@ local pattern = graphics.image.new("pattern")
 
 function init()
 	-- Load the font
-	local font = graphics.font.new("fonts/Roobert-11-Medium")
+	local font = graphics.font.new("fonts/RobotoSlab-VariableFont_wght-12")
 	assert(font)
 	graphics.setFont(font)
 
@@ -36,7 +36,7 @@ function init()
 
 	-- Split the text into lines
 	lines = splitText(text)
-	lineHeight = graphics.getTextSize("A") * 1.9
+	lineHeight = graphics.getTextSize("A") * 1.6
 
 	-- Set the background color
 	graphics.setBackgroundColor(graphics.kColorWhite)
@@ -113,7 +113,7 @@ end
 -- Register input callbacks
 function playdate.cranked(change, acceleratedChange)
 	-- print("cranked", change, acceleratedChange)
-	offset = offset + change * CRANK_SCROLL_SPEED
+	offset = offset - change * CRANK_SCROLL_SPEED
 end
 
 function playdate.upButtonDown()
