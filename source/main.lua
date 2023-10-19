@@ -26,6 +26,10 @@ local pattern = graphics.image.new("pattern")
 local showBorder = false
 local margin = 10
 local sourceText = nil
+local startLine = 1
+local endLine = 0
+local startLineCharIndex = 0
+local endLineCharIndex = 0
 
 function init()
 	-- Load the font
@@ -39,7 +43,7 @@ function init()
 	assert(sourceText)
 
 	-- Split the text into lines
-	lines = splitText(sourceText)
+	generateLines(sourceText, 10)
 	lineHeight = graphics.getTextSize("A") * 1.6
 
 	-- Set the background color
@@ -64,10 +68,14 @@ function drawText()
 	graphics.clear()
 	graphics.drawText(playdate.getCrankPosition(), margin, offset)
 	-- Only draw the lines that are visible
-	local start = math.max(math.floor(-offset / lineHeight), 1)
-	local stop = math.min(start + math.floor(DEVICE_HEIGHT / lineHeight) + 1, #lines)
+	-- local start = math.max(math.floor(-offset / lineHeight), 1)
+	-- local stop = math.min(start + math.floor(DEVICE_HEIGHT / lineHeight) + 1, #lines)
 	local flooredOffset = math.floor(offset)
-	for i = start, stop do
+	-- for i = start, stop do
+	-- 	local y = flooredOffset + i * lineHeight
+	-- 	graphics.drawText(lines[i], margin, y)
+	-- end
+	for i = startLine, endLine do
 		local y = flooredOffset + i * lineHeight
 		graphics.drawText(lines[i], margin, y)
 	end
@@ -78,35 +86,75 @@ function drawText()
 			pattern:draw(DEVICE_WIDTH - pattern.width - patternMargin, i * pattern.height + flooredOffset % pattern.height, -1)
 		end
 	end
+	-- Detect end of text
+	if flooredOffset + endLine * lineHeight < 0 then
+		-- Add more lines
+		generateLines(sourceText, 5)
+	end
 end
 
 -- Split text into lines with a maximum width of 400 - 2 * MARGIN
-function splitText(text)
+-- Size is the number of lines to add, negative to prepend, positive to append
+function generateLines(text, size)
 	print("Splitting text...")
-	local lines = {}
+	local maxLength = getMaxLineLength()
+	if size < 0 then
+		-- Prepend
+	else
+		-- Append
+		local newEnd = endLineCharIndex + maxLength * size
+		local chunk = getLines(text, endLineCharIndex + 1, newEnd)
+		-- Chunk should always have more lines than requested
+		print("Chunk has " .. #chunk .. " lines")
+		-- Determine if the first line is a continuation of the last line
+		for i, line in ipairs(chunk) do
+			table.insert(lines, line)
+		end
+		endLineCharIndex = newEnd
+		endLine = endLine + #chunk
+		print("Size of lines: " .. #lines)
+		print("End line: " .. endLine)
+	end
+end
+
+-- Get the maximum number of characters that can fit on a line
+function getMaxLineLength()
+	local maxWidth = DEVICE_WIDTH
+	local lineLength = 0
+	local i = 1
+	while lineLength < maxWidth do
+		lineLength = graphics.getTextSize(string.rep("I", i))
+		i = i + 1
+	end
+	return i - 1
+end
+
+
+function getLines(wholeText, startChar, endChar)
+	-- Split text into lines from the starting character to the ending character
+	local someLines = {}
 	local line = ""
 	local maxWidth = DEVICE_WIDTH - 2 * margin
-	local splitty = split(text)
-	for i = 1, 10000 do
-		local word = splitty(i)
+	local text = string.sub(wholeText, startChar, endChar)
+	local spliterator = split(text)
+	for word in spliterator do
 		if word == "{newline}" then
 			-- Newline
-			table.insert(lines, line)
+			table.insert(someLines, line)
 			line = ""
 		elseif line == "" then
 			-- First word
 			line = word
 		elseif graphics.getTextSize(line .. " " .. word) > maxWidth then
 			-- Line is too long, commit it and start again with this word
-			table.insert(lines, line)
+			table.insert(someLines, line)
 			line = word
 		else
 			line = line .. " " .. word
 		end
 	end
-	table.insert(lines, line)
-	print("Split into " .. #lines .. " lines")
-	return lines
+	table.insert(someLines, line)
+	return someLines
 end
 
 function split(text)
@@ -156,7 +204,7 @@ function playdate.AButtonDown()
 	else
 		margin = MARGIN_WITHOUT_BORDER
 	end
-	lines = splitText(sourceText)
+	lines = generateLines(sourceText)
 end
 
 function playdate.BButtonDown()
