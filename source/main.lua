@@ -26,10 +26,11 @@ local pattern = graphics.image.new("pattern")
 local showBorder = false
 local margin = 10
 local sourceText = nil
-local startLine = 1
-local endLine = 0
-local startLineCharIndex = 0
-local endLineCharIndex = 0
+local cleanText = nil
+local range = 500
+local anchorIndex = 1
+local anchorLine = 1
+local nextAnchorIndex = 1
 
 function init()
 	-- Load the font
@@ -41,6 +42,7 @@ function init()
 	local file = playdate.file.open("rough.txt")
 	sourceText = file:read(MAX_FILE_SIZE)
 	assert(sourceText)
+	cleanText = preprocessText(sourceText)
 
 	-- Split the text into lines
 	generateLines(sourceText, 10)
@@ -75,7 +77,8 @@ function drawText()
 	-- 	local y = flooredOffset + i * lineHeight
 	-- 	graphics.drawText(lines[i], margin, y)
 	-- end
-	for i = startLine, endLine do
+	local endLine = #lines
+	for i = anchorLine, endLine do
 		local y = flooredOffset + i * lineHeight
 		graphics.drawText(lines[i], margin, y)
 	end
@@ -87,81 +90,86 @@ function drawText()
 		end
 	end
 	-- Detect end of text
-	if flooredOffset + endLine * lineHeight < 0 then
+	if flooredOffset + endLine * lineHeight < DEVICE_HEIGHT then
 		-- Add more lines
-		generateLines(sourceText, 5)
+		appendLines()
 	end
 end
 
--- Split text into lines with a maximum width of 400 - 2 * MARGIN
--- Size is the number of lines to add, negative to prepend, positive to append
-function generateLines(text, size)
+function appendLines()
+	local newLines, indexLast = getLines(cleanText, nextAnchorIndex, nextAnchorIndex + range)
+	table.insert(lines, "")
+	for i = 1, #newLines do
+		table.insert(lines, newLines[i])
+	end
+	nextAnchorIndex = indexLast + nextAnchorIndex
+	print("indexOfLastLine", nextAnchorIndex)
+end
+
+function generateLines()
 	print("Splitting text...")
-	local maxLength = getMaxLineLength()
-	if size < 0 then
-		-- Prepend
-	else
-		-- Append
-		local newEnd = endLineCharIndex + maxLength * size
-		local chunk = getLines(text, endLineCharIndex + 1, newEnd)
-		-- Chunk should always have more lines than requested
-		print("Chunk has " .. #chunk .. " lines")
-		-- Determine if the first line is a continuation of the last line
-		for i, line in ipairs(chunk) do
-			table.insert(lines, line)
-		end
-		endLineCharIndex = newEnd
-		endLine = endLine + #chunk
-		print("Size of lines: " .. #lines)
-		print("End line: " .. endLine)
-	end
-end
-
--- Get the maximum number of characters that can fit on a line
-function getMaxLineLength()
-	local maxWidth = DEVICE_WIDTH
-	local lineLength = 0
-	local i = 1
-	while lineLength < maxWidth do
-		lineLength = graphics.getTextSize(string.rep("I", i))
-		i = i + 1
-	end
-	return i - 1
+	lines, indexLast = getLines(cleanText, anchorIndex, anchorIndex + range)
+	nextAnchorIndex = indexLast
+	print(#lines)
 end
 
 
 function getLines(wholeText, startChar, endChar)
 	-- Split text into lines from the starting character to the ending character
-	local someLines = {}
-	local line = ""
-	local maxWidth = DEVICE_WIDTH - 2 * margin
+	local newLines = {}
 	local text = string.sub(wholeText, startChar, endChar)
-	local spliterator = split(text)
-	for word in spliterator do
-		if word == "{newline}" then
+	-- https://stackoverflow.com/questions/829063/how-to-iterate-individual-characters-in-lua-string
+	local maxWidth = DEVICE_WIDTH - 2 * margin
+	local lastSpace = nil
+	local currentLine = ""
+	local indexOfStartOfLastLine = 1
+	for i = 1, #text do
+		local char = text:sub(i, i)
+		if char == "\n" then
 			-- Newline
-			table.insert(someLines, line)
-			line = ""
-		elseif line == "" then
-			-- First word
-			line = word
-		elseif graphics.getTextSize(line .. " " .. word) > maxWidth then
-			-- Line is too long, commit it and start again with this word
-			table.insert(someLines, line)
-			line = word
+			table.insert(newLines, currentLine)
+			currentLine = ""
+			lastSpace = nil
+			indexOfStartOfLastLine = i + 1
 		else
-			line = line .. " " .. word
+			if graphics.getTextSize(currentLine .. char) > maxWidth then
+				if lastSpace then
+					-- Cut off at the last space
+					table.insert(newLines, string.sub(currentLine, 1, lastSpace))
+					-- Add the rest of the line, excluding the space
+					currentLine = string.sub(currentLine, lastSpace + 2) .. char
+					indexOfStartOfLastLine = i - #currentLine
+					lastSpace = nil
+				else
+					-- Cut off at the last character
+					table.insert(newLines, currentLine)
+					currentLine = char
+					indexOfStartOfLastLine = i
+				end
+			elseif char == " " then
+				-- Update last space
+				lastSpace = #currentLine
+				currentLine = currentLine .. char
+			elseif char == "	" then
+				-- Ignore tabs
+			else
+				-- Normal letter
+				currentLine = currentLine .. char
+			end
 		end
 	end
-	table.insert(someLines, line)
-	return someLines
+	return newLines, indexOfStartOfLastLine
 end
 
 function split(text)
-	-- replace \n with "{newline}"
-	local newText = string.gsub(text, "\n", " {newline} ")
 	-- split on spaces
-	return string.gmatch(newText, "%S+")
+	return string.gmatch(text, "%S+")
+end
+
+function preprocessText(text)
+	-- replace \n with "{newline}"
+	-- local newText = string.gsub(text, "\n", " {newline} ")
+	return text
 end
 
 -- Register input callbacks
