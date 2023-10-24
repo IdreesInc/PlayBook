@@ -128,6 +128,8 @@ function playdate.update()
 end
 
 function appendLines()
+	-- Check performance
+	playdate.resetElapsedTime()
 	local newLines, indexLast = getLines(cleanText, nextAnchorIndex, nextAnchorIndex + range)
 	-- insert(lines, "     [APPEND]")
 	local start = #lines + 1
@@ -145,8 +147,9 @@ function appendLines()
 		nextAnchorLine = previousNext + #newLines
 	end
 	nextAnchorIndex = indexLast + nextAnchorIndex
-	skipSoundTicks = 5
+	-- skipSoundTicks = 5
 	skipScrollTicks = 1
+	print("Append time: " .. (playdate.getElapsedTime()))
 end
 
 function generateLines()
