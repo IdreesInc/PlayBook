@@ -1,6 +1,12 @@
 import 'CoreLibs/graphics.lua'
 
 local graphics = playdate.graphics
+local min = math.min
+local max = math.max
+local abs = math.abs
+local floor = math.floor
+local ceil = math.ceil
+
 -- 50 Hz is max refresh rate
 playdate.display.setRefreshRate(50)
 
@@ -27,12 +33,15 @@ local showBorder = false
 local margin = 10
 local sourceText = nil
 local cleanText = nil
-local range = 500
+local range = 450
+local previousAnchorIndex = 1
+local previousAnchorLine = nil
 local anchorIndex = 1
 local anchorLine = 1
 local nextAnchorIndex = 1
+local nextAnchorLine = nil
 
-function init()
+local init = function ()
 	-- Load the font
 	local font = graphics.font.new("fonts/RobotoSlab-VariableFont_wght-12")
 	assert(font)
@@ -56,35 +65,38 @@ function init()
 	sound:playNote(850)
 end
 
--- Update loop
-function playdate.update()
-	drawText()
-	offset = offset + directionHeld * BTN_SCROLL_SPEED
-	-- Update the sound
-	local vol = math.min(math.abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
-	sound:setVolume(vol)
-end
-
-
-function drawText()
+local drawText = function ()
 	graphics.clear()
 	graphics.drawText(playdate.getCrankPosition(), margin, offset)
 	-- Only draw the lines that are visible
 	-- local start = math.max(math.floor(-offset / lineHeight), 1)
 	-- local stop = math.min(start + math.floor(DEVICE_HEIGHT / lineHeight) + 1, #lines)
-	local flooredOffset = math.floor(offset)
+	local flooredOffset = floor(offset)
 	-- for i = start, stop do
 	-- 	local y = flooredOffset + i * lineHeight
 	-- 	graphics.drawText(lines[i], margin, y)
 	-- end
-	local endLine = #lines
-	for i = anchorLine, endLine do
+	local startLine
+	if previousAnchorLine == nil then
+		startLine = anchorLine
+	else
+		startLine = previousAnchorLine
+	end
+	startLine = max(startLine, 1)
+	local endLine
+	if nextAnchorLine == nil then
+		endLine = anchorLine + #lines
+	else
+		endLine = nextAnchorLine
+	end
+	endLine = min(endLine, #lines)
+	for i = startLine, endLine do
 		local y = flooredOffset + i * lineHeight
 		graphics.drawText(lines[i], margin, y)
 	end
 	local patternMargin = 0
 	if showBorder then
-		for i=-1, math.ceil(DEVICE_HEIGHT / pattern.height) do
+		for i=-1, ceil(DEVICE_HEIGHT / pattern.height) do
 			pattern:draw(patternMargin, i * pattern.height + flooredOffset % pattern.height)
 			pattern:draw(DEVICE_WIDTH - pattern.width - patternMargin, i * pattern.height + flooredOffset % pattern.height, -1)
 		end
@@ -96,12 +108,33 @@ function drawText()
 	end
 end
 
+-- Update loop
+function playdate.update()
+	drawText()
+	offset = offset + directionHeld * BTN_SCROLL_SPEED
+	-- Update the sound
+	local vol = min(abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
+	sound:setVolume(vol)
+end
+
 function appendLines()
 	local newLines, indexLast = getLines(cleanText, nextAnchorIndex, nextAnchorIndex + range)
-	table.insert(lines, "")
-	for i = 1, #newLines do
-		table.insert(lines, newLines[i])
+	table.insert(lines, "     [APPEND]")
+	local start = #lines + 1
+	local stop = start + #newLines - 1
+	for i = start, stop do
+		lines[i] = newLines[i - start + 1]
 	end
+	previousAnchorIndex = anchorIndex
+	previousAnchorLine = anchorLine
+	if nextAnchorLine == nil then
+		nextAnchorLine = anchorLine + #newLines
+	else
+		local previousNext = nextAnchorLine
+		anchorLine = nextAnchorLine
+		nextAnchorLine = previousNext + #newLines
+	end
+	print("anchorLine", anchorLine)
 	nextAnchorIndex = indexLast + nextAnchorIndex
 	print("indexOfLastLine", nextAnchorIndex)
 end
@@ -122,39 +155,46 @@ function getLines(wholeText, startChar, endChar)
 	local maxWidth = DEVICE_WIDTH - 2 * margin
 	local lastSpace = nil
 	local currentLine = ""
+	local lineWidth = 0
 	local indexOfStartOfLastLine = 1
 	for i = 1, #text do
 		local char = text:sub(i, i)
+		local charWidth = graphics.getTextSize(char)
 		if char == "\n" then
 			-- Newline
 			table.insert(newLines, currentLine)
 			currentLine = ""
+			lineWidth = 0
 			lastSpace = nil
 			indexOfStartOfLastLine = i + 1
 		else
-			if graphics.getTextSize(currentLine .. char) > maxWidth then
+			if lineWidth + charWidth > maxWidth then
 				if lastSpace then
 					-- Cut off at the last space
 					table.insert(newLines, string.sub(currentLine, 1, lastSpace))
 					-- Add the rest of the line, excluding the space
 					currentLine = string.sub(currentLine, lastSpace + 2) .. char
 					indexOfStartOfLastLine = i - #currentLine
+					lineWidth = graphics.getTextSize(currentLine)
 					lastSpace = nil
 				else
 					-- Cut off at the last character
 					table.insert(newLines, currentLine)
 					currentLine = char
+					lineWidth = charWidth
 					indexOfStartOfLastLine = i
 				end
 			elseif char == " " then
 				-- Update last space
 				lastSpace = #currentLine
 				currentLine = currentLine .. char
+				lineWidth = lineWidth + charWidth
 			elseif char == "	" then
 				-- Ignore tabs
 			else
 				-- Normal letter
 				currentLine = currentLine .. char
+				lineWidth = lineWidth + charWidth
 			end
 		end
 	end
