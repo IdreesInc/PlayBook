@@ -1,5 +1,6 @@
 import 'CoreLibs/graphics.lua'
 
+local playdate = playdate
 local graphics = playdate.graphics
 local min = math.min
 local max = math.max
@@ -40,6 +41,7 @@ local anchorIndex = 1
 local anchorLine = 1
 local nextAnchorIndex = 1
 local nextAnchorLine = nil
+local skipSoundTicks = 0
 
 local init = function ()
 	-- Load the font
@@ -112,9 +114,13 @@ end
 function playdate.update()
 	drawText()
 	offset = offset + directionHeld * BTN_SCROLL_SPEED
-	-- Update the sound
 	local vol = min(abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
-	sound:setVolume(vol)
+	if skipSoundTicks > 0 then
+		skipSoundTicks = skipSoundTicks - 1
+	else
+		-- Update the sound
+		sound:setVolume(vol)
+	end
 end
 
 function appendLines()
@@ -134,9 +140,8 @@ function appendLines()
 		anchorLine = nextAnchorLine
 		nextAnchorLine = previousNext + #newLines
 	end
-	print("anchorLine", anchorLine)
 	nextAnchorIndex = indexLast + nextAnchorIndex
-	print("indexOfLastLine", nextAnchorIndex)
+	skipSoundTicks = 5
 end
 
 function generateLines()
