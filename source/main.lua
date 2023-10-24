@@ -165,8 +165,10 @@ function addLines(additionalLines, append, startChar)
 	local lineStart = charIndex
 	-- The index of the last character of the current line
 	local lineStop = charIndex
-	-- Index of the last space character for word wrapping
+	-- Index within the line of the last space character in for word wrapping
 	local lastSpace = nil
+	-- Index within the text of the last space character
+	local lastSpaceIndex = nil
 	-- Function to insert a line into the lines table
 	local insertLine = function (line, start, stop, nextLine)
 		if nextLine == nil then
@@ -180,12 +182,13 @@ function addLines(additionalLines, append, startChar)
 		currentLine = nextLine
 		numOfLines = numOfLines + 1
 		lastSpace = nil
+		lastSpaceIndex = nil
 		if append then
 			lineStart = stop + 1
-			lineStop = stop + 1 + #nextLine
+			lineStop = lineStart + #nextLine
 		else
-			lineStart = start - 1 - #nextLine
 			lineStop = start - 1
+			lineStart = lineStop - #nextLine
 		end
 	end
 	-- Add lines until the target number of lines is reached
@@ -201,16 +204,30 @@ function addLines(additionalLines, append, startChar)
 			-- Newline is converted to a space before being added so it counts
 			-- as a character without the draw func printing an extra newline
 			if append then
-				insertLine(currentLine .. " ", lineStart, lineStop + 1)
+				insertLine(currentLine .. " ", lineStart, lineStop)
 			else
-				insertLine(" " .. currentLine, lineStart - 1, lineStop)
+				insertLine(" " .. currentLine, lineStart, lineStop)
 			end
 		elseif graphics.getTextSize(combined) > MAX_WIDTH then
-			-- Sharp wrap at character
-			insertLine(currentLine, lineStart, lineStop, char)
+			if lastSpace then
+				-- Wrap at last space
+				local textBeforeWrap = sub(currentLine, 1, lastSpace)
+				local textAfterWrap = sub(currentLine, lastSpace + 1) .. char
+				insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
+				-- print(textBeforeWrap .. "|" .. textAfterWrap)
+			else
+				-- Sharp wrap at character
+				insertLine(currentLine, lineStart, lineStop, char)
+			end
 		else
 			-- Normal letter
 			currentLine = combined
+			if char == " " then
+				-- Update last space to the local index
+				lastSpace = #currentLine
+				-- Update this to the index within the text
+				lastSpaceIndex = charIndex
+			end
 			if append then
 				lineStop = charIndex
 			else
