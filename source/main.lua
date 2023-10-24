@@ -60,7 +60,7 @@ local init = function ()
 	cleanText = preprocessText(sourceText)
 
 	-- Split the text into lines
-	generateLines(sourceText, 10)
+	generateLines()
 	lineHeight = graphics.getTextSize("A") * 1.6
 
 	-- Set the background color
@@ -91,11 +91,12 @@ local drawText = function ()
 	startLine = max(startLine, 1)
 	local endLine
 	if nextAnchorLine == nil then
-		endLine = anchorLine + #lines
+		endLine = anchorLine + #lines - 1
 	else
-		endLine = nextAnchorLine
+		endLine = nextAnchorLine - 1
 	end
-	endLine = min(endLine, #lines)
+	-- print("Start line: " .. startLine, "End line: " .. endLine)
+	-- endLine = min(endLine, #lines)
 	for i = startLine, endLine do
 		local y = flooredOffset + i * lineHeight
 		graphics.drawText(lines[i], margin, y)
@@ -132,10 +133,16 @@ function appendLines()
 	playdate.resetElapsedTime()
 	local newLines, indexLast = getLines(cleanText, nextAnchorIndex, nextAnchorIndex + range)
 	-- insert(lines, "     [APPEND]")
-	local start = #lines + 1
+	local start = nextAnchorLine
 	local stop = start + #newLines - 1
 	for i = start, stop do
 		lines[i] = newLines[i - start + 1]
+	end
+	if previousAnchorLine ~= nil then
+		-- Remove all lines before the previous anchor line
+		for i = previousAnchorLine, anchorLine - 1 do
+			lines[i] = nil
+		end
 	end
 	previousAnchorIndex = anchorIndex
 	previousAnchorLine = anchorLine
@@ -147,6 +154,7 @@ function appendLines()
 		nextAnchorLine = previousNext + #newLines
 	end
 	nextAnchorIndex = indexLast + nextAnchorIndex
+	-- print("Previous anchor line: " .. previousAnchorLine, "Current anchor line: " .. anchorLine, "Next anchor line: " .. nextAnchorLine)
 	-- skipSoundTicks = 5
 	skipScrollTicks = 1
 	print("Append time: " .. (playdate.getElapsedTime()))
@@ -156,6 +164,7 @@ function generateLines()
 	print("Splitting text...")
 	lines, indexLast = getLines(cleanText, anchorIndex, anchorIndex + range)
 	nextAnchorIndex = indexLast
+	nextAnchorLine = anchorLine + #lines
 	print(#lines)
 end
 
