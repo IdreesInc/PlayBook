@@ -123,13 +123,21 @@ function playdate.update()
 end
 
 function initializeLines()
-	lines = {{ text = "        [HERE IT IS]", start = 1, stop = 1 }}
-	appendLines(10, 1)
-	prependLines(10, 1)
+	lines = {{ text = "        [HERE IT IS]", start = 1, stop = 0 }}
+	appendLines(10)
+	prependLines(10)
 	print(#lines)
 end
 
-function stickOnSomeLines(additionalLines, startChar, append)
+function prependLines(additionalLines)
+	addLines(additionalLines, false)
+end
+
+function appendLines(additionalLines)
+	addLines(additionalLines, true)
+end
+
+function addLines(additionalLines, append, startChar)
 	if text == nil then
 		print("Error: text is nil")
 		return
@@ -157,20 +165,26 @@ function stickOnSomeLines(additionalLines, startChar, append)
 	local lineStart = charIndex
 	-- The index of the last character of the current line
 	local lineStop = charIndex
+	-- Index of the last space character for word wrapping
+	local lastSpace = nil
 	-- Function to insert a line into the lines table
-	local insertLine = function (line, start, stop)
+	local insertLine = function (line, start, stop, nextLine)
+		if nextLine == nil then
+			nextLine = ""
+		end
 		if append then
 			insert(lines, { text = line, start = start, stop = stop })
 		else
 			insert(lines, 1, { text = line, start = start, stop = stop })
 		end
-		currentLine = ""
+		currentLine = nextLine
 		numOfLines = numOfLines + 1
+		lastSpace = nil
 		if append then
 			lineStart = stop + 1
-			lineStop = stop + 1
+			lineStop = stop + 1 + #nextLine
 		else
-			lineStart = start - 1
+			lineStart = start - 1 - #nextLine
 			lineStop = start - 1
 		end
 	end
@@ -192,8 +206,10 @@ function stickOnSomeLines(additionalLines, startChar, append)
 				insertLine(" " .. currentLine, lineStart - 1, lineStop)
 			end
 		elseif graphics.getTextSize(combined) > MAX_WIDTH then
-			insertLine(currentLine, lineStart, lineStop)
+			-- Sharp wrap at character
+			insertLine(currentLine, lineStart, lineStop, char)
 		else
+			-- Normal letter
 			currentLine = combined
 			if append then
 				lineStop = charIndex
@@ -211,111 +227,6 @@ function stickOnSomeLines(additionalLines, startChar, append)
 	if not append then
 		emptyLinesAbove = emptyLinesAbove - (numOfLines - initialNumOfLines)
 	end
-end
-
-function appendLines(additionalLines, startChar)
-	stickOnSomeLines(additionalLines, startChar, true)
-	-- if text == nil then
-	-- 	print("Error: text is nil")
-	-- 	return
-	-- end
-	-- -- Initial number of lines
-	-- local initialNumOfLines = #lines
-	-- -- Live number of lines
-	-- local numOfLines = initialNumOfLines
-	-- -- Index of the character currently being processed
-	-- local charIndex = 1
-	-- if startChar then
-	-- 	charIndex = startChar
-	-- elseif numOfLines > 0 then
-	-- 	charIndex = lines[#lines].stop + 1
-	-- end
-	-- -- The max width in pixels that a line can be
-	-- local MAX_WIDTH = DEVICE_WIDTH - 2 * margin
-	-- -- The text of the current line as it is processed
-	-- local currentLine = ""
-	-- -- The index of the first character of the current line
-	-- local lineStart = charIndex
-	-- -- The index of the last character of the current line
-	-- local lineStop = charIndex
-	-- -- Function to insert a line into the lines table
-	-- local insertLine = function (line, start, stop)
-	-- 	insert(lines, { text = line, start = start, stop = stop })
-	-- 	currentLine = ""
-	-- 	numOfLines = numOfLines + 1
-	-- 	lineStart = stop + 1
-	-- 	lineStop = stop + 1
-	-- end
-	-- -- Add lines until the target number of lines is reached
-	-- while numOfLines < initialNumOfLines + additionalLines do
-	-- 	local char = sub(text, charIndex, charIndex)
-	-- 	local combined = currentLine .. char
-	-- 	if char == "\n" then
-	-- 		-- Newline is converted to a space before being added so it counts
-	-- 		-- as a character without the draw func printing an extra newline
-	-- 		insertLine(currentLine .. " ", lineStart, lineStop + 1)
-	-- 	elseif graphics.getTextSize(combined) > MAX_WIDTH then
-	-- 		insertLine(currentLine, lineStart, lineStop)
-	-- 	else
-	-- 		currentLine = combined
-	-- 		lineStop = charIndex
-	-- 	end
-	-- 	charIndex = charIndex + 1
-	-- end
-	-- print("Appended " .. (numOfLines - initialNumOfLines) .. " lines")
-end
-
-function prependLines(additionalLines, startChar)
-	stickOnSomeLines(additionalLines, startChar, false)
-	-- if text == nil then
-	-- 	print("Error: text is nil")
-	-- 	return
-	-- end
-	-- -- Initial number of lines
-	-- local initialNumOfLines = #lines
-	-- -- Live number of lines
-	-- local numOfLines = initialNumOfLines
-	-- -- Index of the character currently being processed
-	-- local charIndex = 1
-	-- if startChar then
-	-- 	charIndex = startChar
-	-- elseif numOfLines > 0 then
-	-- 	charIndex = lines[1].start - 1
-	-- end
-	-- -- The max width in pixels that a line can be
-	-- local MAX_WIDTH = DEVICE_WIDTH - 2 * margin
-	-- -- The text of the current line as it is processed
-	-- local currentLine = ""
-	-- -- The index of the first character of the current line
-	-- local lineStart = charIndex
-	-- -- The index of the last character of the current line
-	-- local lineStop = charIndex
-	-- -- Function to insert a line into the lines table
-	-- local insertLine = function (line, start, stop)
-	-- 	insert(lines, 1, { text = line, start = start, stop = stop })
-	-- 	currentLine = ""
-	-- 	numOfLines = numOfLines + 1
-	-- 	lineStart = start - 1
-	-- 	lineStop = start - 1
-	-- end
-	-- -- Add lines until the target number of lines is reached
-	-- while numOfLines < initialNumOfLines + additionalLines do
-	-- 	local char = sub(text, charIndex, charIndex)
-	-- 	local combined = char .. currentLine
-	-- 	if char == "\n" then
-	-- 		-- Newline is converted to a space before being added so it counts
-	-- 		-- as a character without the draw func printing an extra newline
-	-- 		insertLine(" " .. currentLine, lineStart - 1, lineStop)
-	-- 	elseif graphics.getTextSize(combined) > MAX_WIDTH then
-	-- 		insertLine(currentLine, lineStart, lineStop)
-	-- 	else
-	-- 		currentLine = combined
-	-- 		lineStart = charIndex
-	-- 	end
-	-- 	charIndex = charIndex - 1
-	-- end
-	-- print("Prepended " .. (numOfLines - initialNumOfLines) .. " lines")
-	-- emptyLinesAbove = emptyLinesAbove - (numOfLines - initialNumOfLines)
 end
 
 -- function getLines(wholeText, startChar, endChar)
