@@ -7,6 +7,8 @@ local max = math.max
 local abs = math.abs
 local floor = math.floor
 local ceil = math.ceil
+local sub = string.sub
+local insert = table.insert
 
 -- 50 Hz is max refresh rate
 playdate.display.setRefreshRate(50)
@@ -34,7 +36,7 @@ local showBorder = false
 local margin = 10
 local sourceText = nil
 local cleanText = nil
-local range = 450
+local range = 500
 local previousAnchorIndex = 1
 local previousAnchorLine = nil
 local anchorIndex = 1
@@ -125,7 +127,7 @@ end
 
 function appendLines()
 	local newLines, indexLast = getLines(cleanText, nextAnchorIndex, nextAnchorIndex + range)
-	table.insert(lines, "     [APPEND]")
+	-- insert(lines, "     [APPEND]")
 	local start = #lines + 1
 	local stop = start + #newLines - 1
 	for i = start, stop do
@@ -163,11 +165,11 @@ function getLines(wholeText, startChar, endChar)
 	local lineWidth = 0
 	local indexOfStartOfLastLine = 1
 	for i = 1, #text do
-		local char = text:sub(i, i)
+		local char = sub(text, i, i)
 		local charWidth = graphics.getTextSize(char)
 		if char == "\n" then
 			-- Newline
-			table.insert(newLines, currentLine)
+			insert(newLines, currentLine)
 			currentLine = ""
 			lineWidth = 0
 			lastSpace = nil
@@ -176,15 +178,15 @@ function getLines(wholeText, startChar, endChar)
 			if lineWidth + charWidth > maxWidth then
 				if lastSpace then
 					-- Cut off at the last space
-					table.insert(newLines, string.sub(currentLine, 1, lastSpace))
+					insert(newLines, sub(currentLine, 1, lastSpace))
 					-- Add the rest of the line, excluding the space
-					currentLine = string.sub(currentLine, lastSpace + 2) .. char
-					indexOfStartOfLastLine = i - #currentLine
+					currentLine = sub(currentLine, lastSpace + 2) .. char
 					lineWidth = graphics.getTextSize(currentLine)
+					indexOfStartOfLastLine = i - #currentLine
 					lastSpace = nil
 				else
 					-- Cut off at the last character
-					table.insert(newLines, currentLine)
+					insert(newLines, currentLine)
 					currentLine = char
 					lineWidth = charWidth
 					indexOfStartOfLastLine = i
