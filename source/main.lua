@@ -113,6 +113,11 @@ local drawText = function ()
 		-- Add more lines
 		appendLines()
 	end
+	if startLine > 1 and flooredOffset + startLine * lineHeight > 0 and  previousAnchorLine ~= nil then
+		-- Add more lines
+		prependLines()
+		print("prepend")
+	end
 end
 
 -- Update loop
@@ -128,7 +133,58 @@ function playdate.update()
 	end
 end
 
+function prependLines()
+	if previousAnchorIndex == nil then
+		print("ERROR: previousAnchorIndex is nil")
+		return
+	end
+	if previousAnchorLine == nil then
+		print("ERROR: previousAnchorLine is nil")
+		return
+	end
+	-- Check performance
+	playdate.resetElapsedTime()
+	local newLines, indexLast = getLines(cleanText, previousAnchorIndex, previousAnchorIndex + range)
+	-- insert(lines, "     [PREPEND]")
+	local start = previousAnchorLine
+	local stop = start + #newLines - 1
+	for i = start, stop do
+		lines[i] = newLines[i - start + 1]
+	end
+	-- if nextAnchorLine ~= nil then
+	-- 	-- Remove all lines after the next anchor line
+	-- 	for i = anchorLine + 1, nextAnchorLine do
+	-- 		lines[i] = nil
+	-- 	end
+	-- end
+	nextAnchorIndex = anchorIndex
+	nextAnchorLine = anchorLine
+	anchorIndex = previousAnchorIndex
+	anchorLine = previousAnchorLine
+	previousAnchorLine = anchorLine - #newLines
+	previousAnchorIndex = indexLast - previousAnchorIndex
+	-- Print all keys
+	local keys = {}
+	for k, v in pairs(lines) do
+		insert(keys, k)
+	end
+	print("Keys: " .. table.concat(keys, ", "))
+	print("Previous anchor line: " .. previousAnchorLine, "Current anchor line: " .. anchorLine, "Next anchor line: " .. nextAnchorLine)
+	skipSoundTicks = 3
+	skipScrollTicks = 1
+	print("Prepend time: " .. (playdate.getElapsedTime()))
+
+end
+
 function appendLines()
+	if nextAnchorIndex == nil then
+		print("ERROR: nextAnchorIndex is nil")
+		return
+	end
+	if nextAnchorLine == nil then
+		print("ERROR: nextAnchorLine is nil")
+		return
+	end
 	-- Check performance
 	playdate.resetElapsedTime()
 	local newLines, indexLast = getLines(cleanText, nextAnchorIndex, nextAnchorIndex + range)
@@ -146,16 +202,12 @@ function appendLines()
 	end
 	previousAnchorIndex = anchorIndex
 	previousAnchorLine = anchorLine
-	if nextAnchorLine == nil then
-		nextAnchorLine = anchorLine + #newLines
-	else
-		local previousNext = nextAnchorLine
-		anchorLine = nextAnchorLine
-		nextAnchorLine = previousNext + #newLines
-	end
+	anchorIndex = nextAnchorIndex
+	anchorLine = nextAnchorLine
+	nextAnchorLine = anchorLine + #newLines
 	nextAnchorIndex = indexLast + nextAnchorIndex
 	-- print("Previous anchor line: " .. previousAnchorLine, "Current anchor line: " .. anchorLine, "Next anchor line: " .. nextAnchorLine)
-	-- skipSoundTicks = 5
+	skipSoundTicks = 3
 	skipScrollTicks = 1
 	print("Append time: " .. (playdate.getElapsedTime()))
 end
