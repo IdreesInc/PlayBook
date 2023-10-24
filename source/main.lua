@@ -44,6 +44,8 @@ local anchorLine = 1
 local nextAnchorIndex = 1
 local nextAnchorLine = nil
 local skipSoundTicks = 0
+local skipScrollTicks = 0
+local previousCrankOffset = 0
 
 local init = function ()
 	-- Load the font
@@ -144,6 +146,7 @@ function appendLines()
 	end
 	nextAnchorIndex = indexLast + nextAnchorIndex
 	skipSoundTicks = 5
+	skipScrollTicks = 1
 end
 
 function generateLines()
@@ -222,7 +225,13 @@ end
 -- Register input callbacks
 function playdate.cranked(change, acceleratedChange)
 	-- print("cranked", change, acceleratedChange)
-	offset = offset - change * CRANK_SCROLL_SPEED
+	if skipScrollTicks > 0 then
+		skipScrollTicks = skipScrollTicks - 1
+		offset = offset - previousCrankOffset
+	else
+		offset = offset - change * CRANK_SCROLL_SPEED
+		previousCrankOffset = change * CRANK_SCROLL_SPEED
+	end
 end
 
 function playdate.upButtonDown()
