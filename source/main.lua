@@ -19,7 +19,7 @@ local DEVICE_WIDTH = 400
 local DEVICE_HEIGHT = 240
 local VOLUME_ACCELERATION = 0.05
 local MAX_VOLUME = 0.025
-local CRANK_SCROLL_SPEED = 1.5
+local CRANK_SCROLL_SPEED = 1.2
 local BTN_SCROLL_SPEED = 5
 local MARGIN_WITH_BORDER = 24
 local MARGIN_WITHOUT_BORDER = 10
@@ -86,16 +86,14 @@ local drawText = function ()
 		-- Detect beginning of text
 		if drawOffset + 2 * lineHeight > 0 then
 			local lineRange = ceil((drawOffset + 2 * lineHeight) / lineHeight)
-			-- lineRange = 100
-			prependLines(lineRange)
-			removeLines(lineRange, true)
+			-- lineRange = 1
+			removeLines(prependLines(lineRange), true)
 		end
 		-- Detect end of text
 		if drawOffset + numOfLines * lineHeight < DEVICE_HEIGHT then
 			local lineRange = ceil((DEVICE_HEIGHT - (drawOffset + numOfLines * lineHeight)) / lineHeight)
-			-- lineRange = 100
-			appendLines(lineRange)
-			removeLines(lineRange, false)
+			-- lineRange = 1
+			removeLines(appendLines(lineRange), false)
 		end
 	end
 end
@@ -115,12 +113,14 @@ end
 
 function initializeLines()
 	appendLines(20)
-	prependLines(20)
+	emptyLinesAbove = 0
 	print(#lines)
 end
 
 function removeLines(numOfLines, fromBottom)
-	print("Removing " .. numOfLines .. " lines")
+	if numOfLines == 0 then
+		return
+	end
 	if fromBottom then
 		for i = 1, numOfLines do
 			table.remove(lines)
@@ -133,13 +133,15 @@ function removeLines(numOfLines, fromBottom)
 end
 
 function prependLines(additionalLines, startChar)
-	addLines(additionalLines, false, startChar)
-	emptyLinesAbove = emptyLinesAbove - additionalLines
+	local linesAdded  = addLines(additionalLines, false, startChar)
+	emptyLinesAbove = emptyLinesAbove - linesAdded
+	return linesAdded
 end
 
 function appendLines(additionalLines, startChar)
-	addLines(additionalLines, true, startChar)
-	emptyLinesAbove = emptyLinesAbove + additionalLines
+	local linesAdded = addLines(additionalLines, true, startChar)
+	emptyLinesAbove = emptyLinesAbove + linesAdded
+	return linesAdded
 end
 
 function addLines(additionalLines, append, startChar)
@@ -166,6 +168,8 @@ function addLines(additionalLines, append, startChar)
 	end
 	-- The max width in pixels that a line can be
 	local MAX_WIDTH = DEVICE_WIDTH - 2 * margin
+	-- The size of the text in characters
+	local textSize = #text
 	-- The text of the current line as it is processed
 	local currentLine = ""
 	-- The index of the first character of the current line
@@ -203,6 +207,12 @@ function addLines(additionalLines, append, startChar)
 	end
 	-- Add lines until the target number of lines is reached
 	while numOfLines < initialNumOfLines + additionalLines do
+		if charIndex < 1 or charIndex > textSize then
+			if currentLine ~= "" then
+				insertLine(currentLine, lineStart, lineStop)
+			end
+			break
+		end
 		local char = sub(text, charIndex, charIndex)
 		local charSize = graphics.getTextSize(char)
 		local combined
@@ -228,10 +238,11 @@ function addLines(additionalLines, append, startChar)
 					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
 					-- print(textBeforeWrap .. "|" .. textAfterWrap)
 				else
-					local textBeforeWrap = sub(currentLine, #currentLine - lastSpace + 2)
-					local textAfterWrap = char .. sub(currentLine, 1, #currentLine - lastSpace)
-					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
-					-- print(textBeforeWrap .. "|" .. textAfterWrap)
+					local invertedLastSpace = #currentLine - lastSpace + 1
+					local textBeforeWrap = sub(currentLine, invertedLastSpace + 1)
+					local textAfterWrap = char .. sub(currentLine, 1, invertedLastSpace)
+					insertLine(textBeforeWrap, lineStart + invertedLastSpace, lineStop, textAfterWrap)
+					-- print(textAfterWrap .. "|" .. textBeforeWrap)
 				end
 			else
 				-- Sharp wrap at character
@@ -261,7 +272,8 @@ function addLines(additionalLines, append, startChar)
 	end
 	-- skipScrollTicks = 1
 	-- skipSoundTicks = 5
-	print("Added " .. (numOfLines - initialNumOfLines) .. " lines in " .. playdate.getElapsedTime() .. " seconds")
+	-- print("Added " .. (numOfLines - initialNumOfLines) .. " lines in " .. playdate.getElapsedTime() .. " seconds")
+	return numOfLines - initialNumOfLines
 end
 
 function split(text)
