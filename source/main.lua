@@ -213,19 +213,17 @@ function addLines(additionalLines, append, startChar)
 			end
 		elseif graphics.getTextSize(combined) > MAX_WIDTH then
 			if lastSpace then
+				-- Wrap at last space, excluding the space
 				if append then
-					-- Wrap at last space, including the space
 					local textBeforeWrap = sub(currentLine, 1, lastSpace)
 					local textAfterWrap = sub(currentLine, lastSpace + 1) .. char
 					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
 					-- print(textBeforeWrap .. "|" .. textAfterWrap)
 				else
-					-- Wrap at last space, excluding the space
 					local textBeforeWrap = sub(currentLine, #currentLine - lastSpace + 2)
 					local textAfterWrap = char .. sub(currentLine, 1, #currentLine - lastSpace)
-					-- print(lastSpace .. " " .. currentLine)
 					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
-					print(textBeforeWrap .. "|" .. textAfterWrap)
+					-- print(textBeforeWrap .. "|" .. textAfterWrap)
 				end
 			else
 				-- Sharp wrap at character
