@@ -59,7 +59,52 @@ local skipScrollTicks = 0
 -- The crank offset from before skipScrollTicks was set
 local previousCrankOffset = 0
 
+-- Save the state of the game to the datastore
+local saveState = function ()
+	print("Saving state...")
+	local state = {}
+	state.inverted = inverted
+	playdate.datastore.write(state)
+	print("State saved!")
+end
+
+-- Get a value from a table if it exists or return a default value
+local getOrDefault = function (table, key, default)
+	local value = table[key]
+	if value == nil then
+		return default
+	else
+		return value
+	end
+end
+
+-- 
+local loadState = function ()
+	print("Loading state...")
+	local state = playdate.datastore.read()
+	if state == nil then
+		state = {}
+		print("No state found, using defaults")
+	else
+		print("State found!")
+	end
+	inverted = getOrDefault(state, "inverted", inverted)
+end
+
+function playdate.gameWillTerminate()
+	saveState()
+end
+
+function playdate.deviceWillSleep()
+	saveState()
+end
+
+function playdate.deviceWillLock()
+	saveState()
+end
+
 local init = function ()
+	loadState()
 	-- Load the font
 	local font = graphics.font.new("fonts/RobotoSlab-VariableFont_wght-12")
 	assert(font)
@@ -71,12 +116,15 @@ local init = function ()
 	assert(sourceText)
 	text = preprocessText(sourceText)
 
+	-- Calculate the line height
+	lineHeight = graphics.getTextSize("A") * 1.6
+
 	-- Split the text into lines
 	initializeLines()
-	lineHeight = graphics.getTextSize("A") * 1.6
 
 	-- Set the background color
 	graphics.setBackgroundColor(graphics.kColorWhite)
+	playdate.display.setInverted(inverted)
 
 	-- Set up scrolling sound
 	sound:setVolume(0)
@@ -129,8 +177,8 @@ function playdate.update()
 end
 
 -- Initialize the first batch of lines
-function initializeLines()
-	appendLines(20)
+function initializeLines(startChar)
+	appendLines(20, startChar)
 	emptyLinesAbove = 0
 	print(#lines)
 end
