@@ -86,12 +86,14 @@ local drawText = function ()
 		-- Detect beginning of text
 		if drawOffset + 2 * lineHeight > 0 then
 			local lineRange = ceil((drawOffset + 2 * lineHeight) / lineHeight)
+			-- lineRange = 100
 			prependLines(lineRange)
 			removeLines(lineRange, true)
 		end
 		-- Detect end of text
 		if drawOffset + numOfLines * lineHeight < DEVICE_HEIGHT then
 			local lineRange = ceil((DEVICE_HEIGHT - (drawOffset + numOfLines * lineHeight)) / lineHeight)
+			-- lineRange = 100
 			appendLines(lineRange)
 			removeLines(lineRange, false)
 		end
@@ -141,6 +143,8 @@ function appendLines(additionalLines, startChar)
 end
 
 function addLines(additionalLines, append, startChar)
+	-- Keep track of time taken
+	playdate.resetElapsedTime()
 	if text == nil then
 		print("Error: text is nil")
 		return
@@ -172,6 +176,8 @@ function addLines(additionalLines, append, startChar)
 	local lastSpace = nil
 	-- Index within the text of the last space character
 	local lastSpaceIndex = nil
+	-- Size of the line in pixels
+	local lineSize = 0
 	-- Function to insert a line into the lines table
 	local insertLine = function (line, start, stop, nextLine)
 		if nextLine == nil then
@@ -186,6 +192,7 @@ function addLines(additionalLines, append, startChar)
 		numOfLines = numOfLines + 1
 		lastSpace = nil
 		lastSpaceIndex = nil
+		lineSize = graphics.getTextSize(nextLine)
 		if append then
 			lineStart = stop + 1
 			lineStop = lineStart + #nextLine
@@ -197,6 +204,7 @@ function addLines(additionalLines, append, startChar)
 	-- Add lines until the target number of lines is reached
 	while numOfLines < initialNumOfLines + additionalLines do
 		local char = sub(text, charIndex, charIndex)
+		local charSize = graphics.getTextSize(char)
 		local combined
 		if append then
 			combined = currentLine .. char
@@ -211,7 +219,7 @@ function addLines(additionalLines, append, startChar)
 			else
 				insertLine(" " .. currentLine, lineStart, lineStop)
 			end
-		elseif graphics.getTextSize(combined) > MAX_WIDTH then
+		elseif lineSize + charSize > MAX_WIDTH then
 			if lastSpace then
 				-- Wrap at last space, excluding the space
 				if append then
@@ -232,6 +240,7 @@ function addLines(additionalLines, append, startChar)
 		else
 			-- Normal letter
 			currentLine = combined
+			lineSize = lineSize + charSize
 			if char == " " then
 				-- Update last space to the local index
 				lastSpace = #currentLine
@@ -250,7 +259,9 @@ function addLines(additionalLines, append, startChar)
 			charIndex = charIndex - 1
 		end
 	end
-	print("Added " .. (numOfLines - initialNumOfLines) .. " lines")
+	-- skipScrollTicks = 1
+	-- skipSoundTicks = 5
+	print("Added " .. (numOfLines - initialNumOfLines) .. " lines in " .. playdate.getElapsedTime() .. " seconds")
 end
 
 function split(text)
