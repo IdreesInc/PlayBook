@@ -30,9 +30,8 @@ local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 local lineHeight = 0
 local inverted = false
 local directionHeld = 0
-local pattern = graphics.image.new("pattern")
-local showBorder = false
-local margin = 10
+local leftMargin = 10
+local rightMargin = 10
 local sourceText = nil
 local text = nil
 local lines = {}
@@ -65,23 +64,20 @@ local init = function ()
 	sound:playNote(850)
 end
 
+-- Draw call
 local drawText = function ()
 	graphics.clear()
-	graphics.drawText(playdate.getCrankPosition(), margin, offset)
+	-- Draw offset for debugging
+	graphics.drawText(playdate.getCrankPosition(), leftMargin, offset)
+	-- Calculate where to begin drawing lines
 	local drawOffset = floor(offset) + emptyLinesAbove * lineHeight
 	local numOfLines = #lines
 	local lineEnd = min(ceil((DEVICE_HEIGHT - drawOffset) / lineHeight), numOfLines)
 	for i = 1, lineEnd do
 		local y = drawOffset + i * lineHeight
-		graphics.drawText(lines[i].text, margin, y)
+		graphics.drawText(lines[i].text, leftMargin, y)
 	end
-	local patternMargin = 0
-	if showBorder then
-		for i=-1, ceil(DEVICE_HEIGHT / pattern.height) do
-			pattern:draw(patternMargin, i * pattern.height + drawOffset % pattern.height)
-			pattern:draw(DEVICE_WIDTH - pattern.width - patternMargin, i * pattern.height + drawOffset % pattern.height, -1)
-		end
-	end
+	-- Detect when user is close to beginning or end of streamed lines
 	if #lines > 0 then
 		-- Detect beginning of text
 		if drawOffset + 2 * lineHeight > 0 then
@@ -101,7 +97,9 @@ end
 -- Update loop
 function playdate.update()
 	drawText()
+	-- Update offset when the D-pad is held
 	offset = offset + directionHeld * BTN_SCROLL_SPEED
+	-- Modulate volume based on scroll speed
 	local vol = min(abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
 	if skipSoundTicks > 0 then
 		skipSoundTicks = skipSoundTicks - 1
@@ -111,12 +109,14 @@ function playdate.update()
 	end
 end
 
+-- Initialize the first batch of lines
 function initializeLines()
 	appendLines(20)
 	emptyLinesAbove = 0
 	print(#lines)
 end
 
+-- Remove the given number of lines
 function removeLines(numOfLines, fromBottom)
 	if numOfLines == 0 then
 		return
@@ -132,18 +132,22 @@ function removeLines(numOfLines, fromBottom)
 	end
 end
 
+-- Add lines to the top of the list
 function prependLines(additionalLines, startChar)
 	local linesAdded  = addLines(additionalLines, false, startChar)
 	emptyLinesAbove = emptyLinesAbove - linesAdded
 	return linesAdded
 end
 
+-- Add lines to the bottom of the list
 function appendLines(additionalLines, startChar)
 	local linesAdded = addLines(additionalLines, true, startChar)
 	emptyLinesAbove = emptyLinesAbove + linesAdded
 	return linesAdded
 end
 
+-- Add the given number of lines to the list
+-- Note that if there are no more lines available, less than the given number of lines will be returned
 function addLines(additionalLines, append, startChar)
 	-- Keep track of time taken
 	playdate.resetElapsedTime()
@@ -167,7 +171,7 @@ function addLines(additionalLines, append, startChar)
 		end
 	end
 	-- The max width in pixels that a line can be
-	local MAX_WIDTH = DEVICE_WIDTH - 2 * margin
+	local MAX_WIDTH = DEVICE_WIDTH - leftMargin - rightMargin
 	-- The size of the text in characters
 	local textSize = #text
 	-- The text of the current line as it is processed
@@ -276,11 +280,7 @@ function addLines(additionalLines, append, startChar)
 	return numOfLines - initialNumOfLines
 end
 
-function split(text)
-	-- split on spaces
-	return string.gmatch(text, "%S+")
-end
-
+-- Process the text to display better on the Playdate
 function preprocessText(text)
 	-- Remove tabs
 	local newText = string.gsub(text, "	", "")
@@ -327,12 +327,6 @@ end
 
 function playdate.AButtonDown()
 	print("A")
-	showBorder = not showBorder
-	if showBorder then
-		margin = MARGIN_WITH_BORDER
-	else
-		margin = MARGIN_WITHOUT_BORDER
-	end
 	-- lines = initializeLines(sourceText)
 end
 
