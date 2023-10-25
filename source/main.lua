@@ -35,13 +35,6 @@ local showBorder = false
 local margin = 10
 local sourceText = nil
 local text = nil
-local range = 500
--- local previousAnchorIndex = 1
--- local previousAnchorLine = nil
--- local anchorIndex = 1
--- local anchorLine = 1
--- local nextAnchorIndex = 1
--- local nextAnchorLine = nil
 local lines = {}
 local emptyLinesAbove = 0
 local skipSoundTicks = 0
@@ -75,19 +68,10 @@ end
 local drawText = function ()
 	graphics.clear()
 	graphics.drawText(playdate.getCrankPosition(), margin, offset)
-	-- Only draw the lines that are visible
-	-- local start = math.max(math.floor(-offset / lineHeight), 1)
-	-- local stop = math.min(start + math.floor(DEVICE_HEIGHT / lineHeight) + 1, #lines)
 	local drawOffset = floor(offset) + emptyLinesAbove * lineHeight
-	-- for i = start, stop do
-	-- 	local y = flooredOffset + i * lineHeight
-	-- 	graphics.drawText(lines[i], margin, y)
-	-- end
-	local startLine = 1
-	local endLine = #lines
-	-- print("Start line: " .. startLine, "End line: " .. endLine)
-	-- endLine = min(endLine, #lines)
-	for i = startLine, endLine do
+	local numOfLines = #lines
+	local lineEnd = min(ceil((DEVICE_HEIGHT - drawOffset) / lineHeight), numOfLines)
+	for i = 1, lineEnd do
 		local y = drawOffset + i * lineHeight
 		graphics.drawText(lines[i].text, margin, y)
 	end
@@ -98,14 +82,19 @@ local drawText = function ()
 			pattern:draw(DEVICE_WIDTH - pattern.width - patternMargin, i * pattern.height + drawOffset % pattern.height, -1)
 		end
 	end
-	-- Detect beginning of text
-	if drawOffset + startLine * lineHeight > 0 then
-		prependLines(10)
-	end
-	-- Detect end of text
-	if drawOffset + endLine * lineHeight < DEVICE_HEIGHT then
-		-- Add more lines
-		appendLines(10)
+	if #lines > 0 then
+		-- Detect beginning of text
+		if drawOffset + 2 * lineHeight > 0 then
+			local lineRange = ceil((drawOffset + 2 * lineHeight) / lineHeight)
+			prependLines(lineRange)
+			removeLines(lineRange, true)
+		end
+		-- Detect end of text
+		if drawOffset + numOfLines * lineHeight < DEVICE_HEIGHT then
+			local lineRange = ceil((DEVICE_HEIGHT - (drawOffset + numOfLines * lineHeight)) / lineHeight)
+			appendLines(lineRange)
+			removeLines(lineRange, false)
+		end
 	end
 end
 
@@ -123,18 +112,32 @@ function playdate.update()
 end
 
 function initializeLines()
-	lines = {{ text = "        [HERE IT IS]", start = 1, stop = 0 }}
-	appendLines(10)
-	prependLines(10)
+	appendLines(20)
+	prependLines(20)
 	print(#lines)
+end
+
+function removeLines(numOfLines, fromBottom)
+	print("Removing " .. numOfLines .. " lines")
+	if fromBottom then
+		for i = 1, numOfLines do
+			table.remove(lines)
+		end
+	else
+		for i = 1, numOfLines do
+			table.remove(lines, 1)
+		end
+	end
 end
 
 function prependLines(additionalLines, startChar)
 	addLines(additionalLines, false, startChar)
+	emptyLinesAbove = emptyLinesAbove - additionalLines
 end
 
 function appendLines(additionalLines, startChar)
 	addLines(additionalLines, true, startChar)
+	emptyLinesAbove = emptyLinesAbove + additionalLines
 end
 
 function addLines(additionalLines, append, startChar)
@@ -250,64 +253,7 @@ function addLines(additionalLines, append, startChar)
 		end
 	end
 	print("Added " .. (numOfLines - initialNumOfLines) .. " lines")
-	if not append then
-		emptyLinesAbove = emptyLinesAbove - (numOfLines - initialNumOfLines)
-	end
 end
-
--- function getLines(wholeText, startChar, endChar)
--- 	-- Split text into lines from the starting character to the ending character
--- 	local newLines = {}
--- 	local text = string.sub(wholeText, startChar, endChar)
--- 	-- https://stackoverflow.com/questions/829063/how-to-iterate-individual-characters-in-lua-string
--- 	local maxWidth = DEVICE_WIDTH - 2 * margin
--- 	local lastSpace = nil
--- 	local currentLine = ""
--- 	local lineWidth = 0
--- 	local indexOfStartOfLastLine = 1
--- 	for i = 1, #text do
--- 		local char = sub(text, i, i)
--- 		local charWidth = graphics.getTextSize(char)
--- 		if char == "\n" then
--- 			-- Newline
--- 			insert(newLines, currentLine)
--- 			currentLine = ""
--- 			lineWidth = 0
--- 			lastSpace = nil
--- 			indexOfStartOfLastLine = i + 1
--- 		else
--- 			if lineWidth + charWidth > maxWidth then
--- 				if lastSpace then
--- 					-- Cut off at the last space
--- 					insert(newLines, sub(currentLine, 1, lastSpace))
--- 					-- Add the rest of the line, excluding the space
--- 					currentLine = sub(currentLine, lastSpace + 2) .. char
--- 					lineWidth = graphics.getTextSize(currentLine)
--- 					indexOfStartOfLastLine = i - #currentLine
--- 					lastSpace = nil
--- 				else
--- 					-- Cut off at the last character
--- 					insert(newLines, currentLine)
--- 					currentLine = char
--- 					lineWidth = charWidth
--- 					indexOfStartOfLastLine = i
--- 				end
--- 			elseif char == " " then
--- 				-- Update last space
--- 				lastSpace = #currentLine
--- 				currentLine = currentLine .. char
--- 				lineWidth = lineWidth + charWidth
--- 			elseif char == "	" then
--- 				-- Ignore tabs
--- 			else
--- 				-- Normal letter
--- 				currentLine = currentLine .. char
--- 				lineWidth = lineWidth + charWidth
--- 			end
--- 		end
--- 	end
--- 	return newLines, indexOfStartOfLastLine
--- end
 
 function split(text)
 	-- split on spaces
@@ -315,8 +261,8 @@ function split(text)
 end
 
 function preprocessText(text)
-	-- replace \n with "{newline}"
-	-- local newText = string.gsub(text, "\n", " {newline} ")
+	-- Remove tabs
+	-- local newText = string.gsub(text, "	", "")
 	return text
 end
 
