@@ -99,7 +99,7 @@ local drawText = function ()
 		end
 	end
 	-- Detect beginning of text
-	if drawOffset > 0 then
+	if drawOffset + startLine * lineHeight > 0 then
 		prependLines(10)
 	end
 	-- Detect end of text
@@ -129,12 +129,12 @@ function initializeLines()
 	print(#lines)
 end
 
-function prependLines(additionalLines)
-	addLines(additionalLines, false)
+function prependLines(additionalLines, startChar)
+	addLines(additionalLines, false, startChar)
 end
 
-function appendLines(additionalLines)
-	addLines(additionalLines, true)
+function appendLines(additionalLines, startChar)
+	addLines(additionalLines, true, startChar)
 end
 
 function addLines(additionalLines, append, startChar)
@@ -210,11 +210,20 @@ function addLines(additionalLines, append, startChar)
 			end
 		elseif graphics.getTextSize(combined) > MAX_WIDTH then
 			if lastSpace then
-				-- Wrap at last space
-				local textBeforeWrap = sub(currentLine, 1, lastSpace)
-				local textAfterWrap = sub(currentLine, lastSpace + 1) .. char
-				insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
-				-- print(textBeforeWrap .. "|" .. textAfterWrap)
+				if append then
+					-- Wrap at last space, including the space
+					local textBeforeWrap = sub(currentLine, 1, lastSpace)
+					local textAfterWrap = sub(currentLine, lastSpace + 1) .. char
+					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
+					-- print(textBeforeWrap .. "|" .. textAfterWrap)
+				else
+					-- Wrap at last space, excluding the space
+					local textBeforeWrap = sub(currentLine, #currentLine - lastSpace + 2)
+					local textAfterWrap = char .. sub(currentLine, 1, #currentLine - lastSpace)
+					-- print(lastSpace .. " " .. currentLine)
+					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
+					print(textBeforeWrap .. "|" .. textAfterWrap)
+				end
 			else
 				-- Sharp wrap at character
 				insertLine(currentLine, lineStart, lineStop, char)
