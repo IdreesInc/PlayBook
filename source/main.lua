@@ -14,30 +14,49 @@ local insert = table.insert
 playdate.display.setRefreshRate(50)
 
 -- Constants
+-- The maximum size of a file to read in bytes
 local MAX_FILE_SIZE = 4 * 1024 * 1024
+-- The width of the screen in pixels
 local DEVICE_WIDTH = 400
+-- The height of the screen in pixels
 local DEVICE_HEIGHT = 240
+-- The acceleration of the volume while scrolling
 local VOLUME_ACCELERATION = 0.05
+-- The maximum volume of the scrolling noise
 local MAX_VOLUME = 0.025
+-- The speed of scrolling via the crank
 local CRANK_SCROLL_SPEED = 1.2
+-- The speed of scrolling via the D-pad
 local BTN_SCROLL_SPEED = 5
 local MARGIN_WITH_BORDER = 24
 local MARGIN_WITHOUT_BORDER = 10
 
 -- Variables
+-- The scroll offset
 local offset = 0;
+-- The sound to play while scrolling
 local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
+-- The height of a line of text in the current font
 local lineHeight = 0
+-- Whether the screen is inverted
 local inverted = false
+-- The direction the user is scrolling via the D-pad
 local directionHeld = 0
+-- The margin on the left of the screen
 local leftMargin = 10
+-- The margin on the right of the screen
 local rightMargin = 10
-local sourceText = nil
+-- The processed text that is being read
 local text = nil
+-- The lines of text that are currently being displayed
 local lines = {}
+-- The number of empty lines to draw above the first line
 local emptyLinesAbove = 0
+-- The number of ticks to skip modulating the volume
 local skipSoundTicks = 0
+-- The number of ticks to skip modulating the scroll offset
 local skipScrollTicks = 0
+-- The crank offset from before skipScrollTicks was set
 local previousCrankOffset = 0
 
 local init = function ()
@@ -48,7 +67,7 @@ local init = function ()
 
 	-- Read something from the filesystem
 	local file = playdate.file.open("rough.txt")
-	sourceText = file:read(MAX_FILE_SIZE)
+	local sourceText = file:read(MAX_FILE_SIZE)
 	assert(sourceText)
 	text = preprocessText(sourceText)
 
