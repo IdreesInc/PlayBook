@@ -283,8 +283,8 @@ end
 
 function preprocessText(text)
 	-- Remove tabs
-	-- local newText = string.gsub(text, "	", "")
-	return text
+	local newText = string.gsub(text, "	", "")
+	return newText
 end
 
 -- Register input callbacks
