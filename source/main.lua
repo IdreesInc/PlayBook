@@ -26,7 +26,6 @@ local MARGIN_WITHOUT_BORDER = 10
 
 -- Variables
 local offset = 0;
-local lines = {}
 local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 local lineHeight = 0
 local inverted = false
@@ -35,14 +34,9 @@ local pattern = graphics.image.new("pattern")
 local showBorder = false
 local margin = 10
 local sourceText = nil
-local cleanText = nil
-local range = 500
-local previousAnchorIndex = 1
-local previousAnchorLine = nil
-local anchorIndex = 1
-local anchorLine = 1
-local nextAnchorIndex = 1
-local nextAnchorLine = nil
+local text = nil
+local lines = {}
+local emptyLinesAbove = 0
 local skipSoundTicks = 0
 local skipScrollTicks = 0
 local previousCrankOffset = 0
@@ -57,10 +51,10 @@ local init = function ()
 	local file = playdate.file.open("rough.txt")
 	sourceText = file:read(MAX_FILE_SIZE)
 	assert(sourceText)
-	cleanText = preprocessText(sourceText)
+	text = preprocessText(sourceText)
 
 	-- Split the text into lines
-	generateLines()
+	initializeLines()
 	lineHeight = graphics.getTextSize("A") * 1.6
 
 	-- Set the background color
@@ -74,44 +68,33 @@ end
 local drawText = function ()
 	graphics.clear()
 	graphics.drawText(playdate.getCrankPosition(), margin, offset)
-	-- Only draw the lines that are visible
-	-- local start = math.max(math.floor(-offset / lineHeight), 1)
-	-- local stop = math.min(start + math.floor(DEVICE_HEIGHT / lineHeight) + 1, #lines)
-	local flooredOffset = floor(offset)
-	-- for i = start, stop do
-	-- 	local y = flooredOffset + i * lineHeight
-	-- 	graphics.drawText(lines[i], margin, y)
-	-- end
-	local startLine
-	if previousAnchorLine == nil then
-		startLine = anchorLine
-	else
-		startLine = previousAnchorLine
-	end
-	startLine = max(startLine, 1)
-	local endLine
-	if nextAnchorLine == nil then
-		endLine = anchorLine + #lines - 1
-	else
-		endLine = nextAnchorLine - 1
-	end
-	-- print("Start line: " .. startLine, "End line: " .. endLine)
-	-- endLine = min(endLine, #lines)
-	for i = startLine, endLine do
-		local y = flooredOffset + i * lineHeight
-		graphics.drawText(lines[i], margin, y)
+	local drawOffset = floor(offset) + emptyLinesAbove * lineHeight
+	local numOfLines = #lines
+	local lineEnd = min(ceil((DEVICE_HEIGHT - drawOffset) / lineHeight), numOfLines)
+	for i = 1, lineEnd do
+		local y = drawOffset + i * lineHeight
+		graphics.drawText(lines[i].text, margin, y)
 	end
 	local patternMargin = 0
 	if showBorder then
 		for i=-1, ceil(DEVICE_HEIGHT / pattern.height) do
-			pattern:draw(patternMargin, i * pattern.height + flooredOffset % pattern.height)
-			pattern:draw(DEVICE_WIDTH - pattern.width - patternMargin, i * pattern.height + flooredOffset % pattern.height, -1)
+			pattern:draw(patternMargin, i * pattern.height + drawOffset % pattern.height)
+			pattern:draw(DEVICE_WIDTH - pattern.width - patternMargin, i * pattern.height + drawOffset % pattern.height, -1)
 		end
 	end
-	-- Detect end of text
-	if flooredOffset + endLine * lineHeight < DEVICE_HEIGHT then
-		-- Add more lines
-		appendLines()
+	if #lines > 0 then
+		-- Detect beginning of text
+		if drawOffset + 2 * lineHeight > 0 then
+			local lineRange = ceil((drawOffset + 2 * lineHeight) / lineHeight)
+			prependLines(lineRange)
+			removeLines(lineRange, true)
+		end
+		-- Detect end of text
+		if drawOffset + numOfLines * lineHeight < DEVICE_HEIGHT then
+			local lineRange = ceil((DEVICE_HEIGHT - (drawOffset + numOfLines * lineHeight)) / lineHeight)
+			appendLines(lineRange)
+			removeLines(lineRange, false)
+		end
 	end
 end
 
@@ -128,99 +111,146 @@ function playdate.update()
 	end
 end
 
-function appendLines()
-	-- Check performance
-	playdate.resetElapsedTime()
-	local newLines, indexLast = getLines(cleanText, nextAnchorIndex, nextAnchorIndex + range)
-	-- insert(lines, "     [APPEND]")
-	local start = nextAnchorLine
-	local stop = start + #newLines - 1
-	for i = start, stop do
-		lines[i] = newLines[i - start + 1]
-	end
-	if previousAnchorLine ~= nil then
-		-- Remove all lines before the previous anchor line
-		for i = previousAnchorLine, anchorLine - 1 do
-			lines[i] = nil
-		end
-	end
-	previousAnchorIndex = anchorIndex
-	previousAnchorLine = anchorLine
-	if nextAnchorLine == nil then
-		nextAnchorLine = anchorLine + #newLines
-	else
-		local previousNext = nextAnchorLine
-		anchorLine = nextAnchorLine
-		nextAnchorLine = previousNext + #newLines
-	end
-	nextAnchorIndex = indexLast + nextAnchorIndex
-	-- print("Previous anchor line: " .. previousAnchorLine, "Current anchor line: " .. anchorLine, "Next anchor line: " .. nextAnchorLine)
-	-- skipSoundTicks = 5
-	skipScrollTicks = 1
-	print("Append time: " .. (playdate.getElapsedTime()))
-end
-
-function generateLines()
-	print("Splitting text...")
-	lines, indexLast = getLines(cleanText, anchorIndex, anchorIndex + range)
-	nextAnchorIndex = indexLast
-	nextAnchorLine = anchorLine + #lines
+function initializeLines()
+	appendLines(20)
+	prependLines(20)
 	print(#lines)
 end
 
-
-function getLines(wholeText, startChar, endChar)
-	-- Split text into lines from the starting character to the ending character
-	local newLines = {}
-	local text = string.sub(wholeText, startChar, endChar)
-	-- https://stackoverflow.com/questions/829063/how-to-iterate-individual-characters-in-lua-string
-	local maxWidth = DEVICE_WIDTH - 2 * margin
-	local lastSpace = nil
-	local currentLine = ""
-	local lineWidth = 0
-	local indexOfStartOfLastLine = 1
-	for i = 1, #text do
-		local char = sub(text, i, i)
-		local charWidth = graphics.getTextSize(char)
-		if char == "\n" then
-			-- Newline
-			insert(newLines, currentLine)
-			currentLine = ""
-			lineWidth = 0
-			lastSpace = nil
-			indexOfStartOfLastLine = i + 1
-		else
-			if lineWidth + charWidth > maxWidth then
-				if lastSpace then
-					-- Cut off at the last space
-					insert(newLines, sub(currentLine, 1, lastSpace))
-					-- Add the rest of the line, excluding the space
-					currentLine = sub(currentLine, lastSpace + 2) .. char
-					lineWidth = graphics.getTextSize(currentLine)
-					indexOfStartOfLastLine = i - #currentLine
-					lastSpace = nil
-				else
-					-- Cut off at the last character
-					insert(newLines, currentLine)
-					currentLine = char
-					lineWidth = charWidth
-					indexOfStartOfLastLine = i
-				end
-			elseif char == " " then
-				-- Update last space
-				lastSpace = #currentLine
-				currentLine = currentLine .. char
-				lineWidth = lineWidth + charWidth
-			elseif char == "	" then
-				-- Ignore tabs
-			else
-				-- Normal letter
-				currentLine = currentLine .. char
-				lineWidth = lineWidth + charWidth
-			end
+function removeLines(numOfLines, fromBottom)
+	print("Removing " .. numOfLines .. " lines")
+	if fromBottom then
+		for i = 1, numOfLines do
+			table.remove(lines)
+		end
+	else
+		for i = 1, numOfLines do
+			table.remove(lines, 1)
 		end
 	end
-	return newLines, indexOfStartOfLastLine
+end
+
+function prependLines(additionalLines, startChar)
+	addLines(additionalLines, false, startChar)
+	emptyLinesAbove = emptyLinesAbove - additionalLines
+end
+
+function appendLines(additionalLines, startChar)
+	addLines(additionalLines, true, startChar)
+	emptyLinesAbove = emptyLinesAbove + additionalLines
+end
+
+function addLines(additionalLines, append, startChar)
+	if text == nil then
+		print("Error: text is nil")
+		return
+	end
+	-- Initial number of lines
+	local initialNumOfLines = #lines
+	-- Live number of lines
+	local numOfLines = initialNumOfLines
+	-- Index of the character currently being processed
+	local charIndex = 1
+	if startChar then
+		charIndex = startChar
+	elseif numOfLines > 0 then
+		if append then
+			charIndex = lines[#lines].stop + 1
+		else
+			charIndex = lines[1].start - 1
+		end
+	end
+	-- The max width in pixels that a line can be
+	local MAX_WIDTH = DEVICE_WIDTH - 2 * margin
+	-- The text of the current line as it is processed
+	local currentLine = ""
+	-- The index of the first character of the current line
+	local lineStart = charIndex
+	-- The index of the last character of the current line
+	local lineStop = charIndex
+	-- Index within the line of the last space character in for word wrapping
+	local lastSpace = nil
+	-- Index within the text of the last space character
+	local lastSpaceIndex = nil
+	-- Function to insert a line into the lines table
+	local insertLine = function (line, start, stop, nextLine)
+		if nextLine == nil then
+			nextLine = ""
+		end
+		if append then
+			insert(lines, { text = line, start = start, stop = stop })
+		else
+			insert(lines, 1, { text = line, start = start, stop = stop })
+		end
+		currentLine = nextLine
+		numOfLines = numOfLines + 1
+		lastSpace = nil
+		lastSpaceIndex = nil
+		if append then
+			lineStart = stop + 1
+			lineStop = lineStart + #nextLine
+		else
+			lineStop = start - 1
+			lineStart = lineStop - #nextLine
+		end
+	end
+	-- Add lines until the target number of lines is reached
+	while numOfLines < initialNumOfLines + additionalLines do
+		local char = sub(text, charIndex, charIndex)
+		local combined
+		if append then
+			combined = currentLine .. char
+		else
+			combined = char .. currentLine
+		end
+		if char == "\n" then
+			-- Newline is converted to a space before being added so it counts
+			-- as a character without the draw func printing an extra newline
+			if append then
+				insertLine(currentLine .. " ", lineStart, lineStop)
+			else
+				insertLine(" " .. currentLine, lineStart, lineStop)
+			end
+		elseif graphics.getTextSize(combined) > MAX_WIDTH then
+			if lastSpace then
+				-- Wrap at last space, excluding the space
+				if append then
+					local textBeforeWrap = sub(currentLine, 1, lastSpace)
+					local textAfterWrap = sub(currentLine, lastSpace + 1) .. char
+					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
+					-- print(textBeforeWrap .. "|" .. textAfterWrap)
+				else
+					local textBeforeWrap = sub(currentLine, #currentLine - lastSpace + 2)
+					local textAfterWrap = char .. sub(currentLine, 1, #currentLine - lastSpace)
+					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
+					-- print(textBeforeWrap .. "|" .. textAfterWrap)
+				end
+			else
+				-- Sharp wrap at character
+				insertLine(currentLine, lineStart, lineStop, char)
+			end
+		else
+			-- Normal letter
+			currentLine = combined
+			if char == " " then
+				-- Update last space to the local index
+				lastSpace = #currentLine
+				-- Update this to the index within the text
+				lastSpaceIndex = charIndex
+			end
+			if append then
+				lineStop = charIndex
+			else
+				lineStart = charIndex
+			end
+		end
+		if append then
+			charIndex = charIndex + 1
+		else
+			charIndex = charIndex - 1
+		end
+	end
+	print("Added " .. (numOfLines - initialNumOfLines) .. " lines")
 end
 
 function split(text)
@@ -229,8 +259,8 @@ function split(text)
 end
 
 function preprocessText(text)
-	-- replace \n with "{newline}"
-	-- local newText = string.gsub(text, "\n", " {newline} ")
+	-- Remove tabs
+	-- local newText = string.gsub(text, "	", "")
 	return text
 end
 
@@ -280,7 +310,7 @@ function playdate.AButtonDown()
 	else
 		margin = MARGIN_WITHOUT_BORDER
 	end
-	lines = generateLines(sourceText)
+	-- lines = initializeLines(sourceText)
 end
 
 function playdate.BButtonDown()
