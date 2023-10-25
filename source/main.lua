@@ -58,24 +58,33 @@ local skipSoundTicks = 0
 local skipScrollTicks = 0
 -- The crank offset from before skipScrollTicks was set
 local previousCrankOffset = 0
+-- The index of the first character to initialize lines from
+local initialIndex = 1
+-- The start of the first line visible on the screen
+local indexAtTopOfScreen = 1
+
+-- Get a value from a table if it exists or return a default value
+local getOrDefault = function (table, key, expectedType, default)
+	local value = table[key]
+	if value == nil then
+		return default
+	else
+		if type(value) ~= expectedType then
+			print("Warning: value for key " .. key .. " is type " .. type(value) .. " but expected type " .. expectedType)
+			return default
+		end
+		return value
+	end
+end
 
 -- Save the state of the game to the datastore
 local saveState = function ()
 	print("Saving state...")
 	local state = {}
 	state.inverted = inverted
+	state.initialIndex = indexAtTopOfScreen
 	playdate.datastore.write(state)
 	print("State saved!")
-end
-
--- Get a value from a table if it exists or return a default value
-local getOrDefault = function (table, key, default)
-	local value = table[key]
-	if value == nil then
-		return default
-	else
-		return value
-	end
 end
 
 -- 
@@ -88,7 +97,8 @@ local loadState = function ()
 	else
 		print("State found!")
 	end
-	inverted = getOrDefault(state, "inverted", inverted)
+	inverted = getOrDefault(state, "inverted", "boolean", inverted)
+	initialIndex = getOrDefault(state, "initialIndex", "number", initialIndex)
 end
 
 function playdate.gameWillTerminate()
@@ -120,7 +130,7 @@ local init = function ()
 	lineHeight = graphics.getTextSize("A") * 1.6
 
 	-- Split the text into lines
-	initializeLines()
+	initializeLines(initialIndex)
 
 	-- Set the background color
 	graphics.setBackgroundColor(graphics.kColorWhite)
@@ -135,17 +145,24 @@ end
 local drawText = function ()
 	graphics.clear()
 	-- Draw offset for debugging
-	graphics.drawText(playdate.getCrankPosition(), leftMargin, offset)
-	-- Calculate where to begin drawing lines
-	local drawOffset = floor(offset) + emptyLinesAbove * lineHeight
-	local numOfLines = #lines
-	local lineEnd = min(ceil((DEVICE_HEIGHT - drawOffset) / lineHeight), numOfLines)
-	for i = 1, lineEnd do
-		local y = drawOffset + i * lineHeight
-		graphics.drawText(lines[i].text, leftMargin, y)
-	end
-	-- Detect when user is close to beginning or end of streamed lines
+	-- graphics.drawText(playdate.getCrankPosition(), leftMargin, offset)
 	if #lines > 0 then
+		-- Calculate where to begin drawing lines
+		local drawOffset = floor(offset) + emptyLinesAbove * lineHeight
+		local numOfLines = #lines
+		local lineEnd = min(ceil((DEVICE_HEIGHT - drawOffset) / lineHeight), numOfLines)
+		local topLineStart = nil
+		for i = 1, lineEnd do
+			local y = drawOffset + i * lineHeight
+			if topLineStart == nil and y > 0 then
+				topLineStart = lines[i].start
+			end
+			graphics.drawText(lines[i].text, leftMargin, y)
+		end
+		if topLineStart ~= nil then
+			indexAtTopOfScreen = topLineStart
+		end
+		-- Detect when user is close to beginning or end of streamed lines
 		-- Detect beginning of text
 		if drawOffset + 2 * lineHeight > 0 then
 			local lineRange = ceil((drawOffset + 2 * lineHeight) / lineHeight)
