@@ -27,7 +27,7 @@ local MAX_VOLUME = 0.025
 -- The speed of scrolling via the crank
 local CRANK_SCROLL_SPEED = 1.2
 -- The speed of scrolling via the D-pad
-local BTN_SCROLL_SPEED = 5
+local BTN_SCROLL_SPEED = 6
 local MARGIN_WITH_BORDER = 24
 local MARGIN_WITHOUT_BORDER = 10
 
@@ -43,9 +43,9 @@ local inverted = false
 -- The direction the user is scrolling via the D-pad
 local directionHeld = 0
 -- The margin on the left of the screen
-local leftMargin = 10
+local leftMargin = 6
 -- The margin on the right of the screen
-local rightMargin = 10
+local rightMargin = 22
 -- The processed text that is being read
 local text = nil
 -- The lines of text that are currently being displayed
@@ -62,6 +62,19 @@ local previousCrankOffset = 0
 local initialIndex = 1
 -- The start of the first line visible on the screen
 local indexAtTopOfScreen = 1
+-- The percentage (between 0 and 1) of the text that has been read
+local textProgress = 0
+-- Candle parts
+local candleFlameOne = graphics.image.new("candle-flame-1.png")
+local candleFlameTwo = graphics.image.new("candle-flame-2.png")
+local candleFlameThree = graphics.image.new("candle-flame-3.png")
+local candleTop = graphics.image.new("candle-top.png")
+local candleSection = graphics.image.new("candle-section.png")
+local candleDripLeft = graphics.image.new("candle-drip-left.png")
+local candleDripRight = graphics.image.new("candle-drip-right.png")
+local candleHolder = graphics.image.new("candle-holder.png")
+-- The flame frame currently being displayed
+local flame = candleFlameOne
 
 -- Get a value from a table if it exists or return a default value
 local getOrDefault = function (table, key, expectedType, default)
@@ -87,7 +100,7 @@ local saveState = function ()
 	print("State saved!")
 end
 
--- 
+-- Load the state of the game from the datastore
 local loadState = function ()
 	print("Loading state...")
 	local state = playdate.datastore.read()
@@ -121,7 +134,7 @@ local init = function ()
 	graphics.setFont(font)
 
 	-- Read something from the filesystem
-	local file = playdate.file.open("rough.txt")
+	local file = playdate.file.open("small.txt")
 	local sourceText = file:read(MAX_FILE_SIZE)
 	assert(sourceText)
 	text = preprocessText(sourceText)
@@ -141,6 +154,39 @@ local init = function ()
 	sound:playNote(850)
 end
 
+-- Draw a candle to the side of the text to indicate progress
+local drawCandle = function ()
+	local TOP = textProgress * (DEVICE_HEIGHT - candleTop.height - 10 - candleHolder.height) + 6
+	local LEFT = DEVICE_WIDTH - 4 - candleSection.width
+	-- Draw the top of the candle
+	candleTop:draw(LEFT, TOP)
+	-- Draw the flame flickering
+	local timeInMilliseconds = playdate.getCurrentTimeMilliseconds()
+	if timeInMilliseconds % 27 == 0 then
+		if flame == candleFlameOne or flame == candleFlameThree then
+			flame = candleFlameTwo
+		elseif flame == candleFlameTwo then
+			if math.random() < 0.6 then
+				flame = candleFlameOne
+			else
+				flame = candleFlameThree
+			end
+		end
+	end
+	flame:draw(LEFT, TOP)
+	-- Draw the candle length
+	local sections = floor((DEVICE_HEIGHT - TOP - candleTop.height) / candleSection.height) + 1
+	for i = 1, sections do
+		candleSection:draw(LEFT, TOP + candleTop.height + (i - 1) * candleSection.height)
+	end
+	-- Draw the drips
+	local bottom = DEVICE_HEIGHT - candleDripLeft.height + 3 - candleHolder.height
+	candleDripLeft:draw(LEFT - candleDripLeft.width + 1, min(bottom, TOP + 40 + textProgress * 115))
+	candleDripRight:draw(LEFT + candleSection.width - 1, min(bottom, TOP + 80 + textProgress * 40))
+	-- Draw the holder
+	candleHolder:draw(LEFT - 3, DEVICE_HEIGHT - candleHolder.height)
+end
+
 -- Draw call
 local drawText = function ()
 	graphics.clear()
@@ -152,15 +198,20 @@ local drawText = function ()
 		local numOfLines = #lines
 		local lineEnd = min(ceil((DEVICE_HEIGHT - drawOffset) / lineHeight), numOfLines)
 		local topLineStart = nil
+		local topLineStop = nil
 		for i = 1, lineEnd do
 			local y = drawOffset + i * lineHeight
 			if topLineStart == nil and y > 0 then
 				topLineStart = lines[i].start
+				topLineStop = lines[i].stop
 			end
 			graphics.drawText(lines[i].text, leftMargin, y)
 		end
 		if topLineStart ~= nil then
 			indexAtTopOfScreen = topLineStart
+			local offsetWithinLine = 1 - (drawOffset % lineHeight) / lineHeight
+			local progressWithinLine = (topLineStop - topLineStart) * offsetWithinLine
+			textProgress = (topLineStart + progressWithinLine) / #text
 		end
 		-- Detect when user is close to beginning or end of streamed lines
 		-- Detect beginning of text
@@ -176,6 +227,7 @@ local drawText = function ()
 			removeLines(appendLines(lineRange), false)
 		end
 	end
+	drawCandle()
 end
 
 -- Update loop
@@ -403,10 +455,20 @@ end
 
 function playdate.leftButtonDown()
 	print("left")
+	directionHeld = 6
+end
+
+function playdate.leftButtonUp()
+	directionHeld = 0
 end
 
 function playdate.rightButtonDown()
 	print("right")
+	directionHeld = -6
+end
+
+function playdate.rightButtonUp()
+	directionHeld = 0
 end
 
 function playdate.AButtonDown()
