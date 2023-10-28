@@ -30,8 +30,20 @@ local CRANK_SCROLL_SPEED = 1.2
 local BTN_SCROLL_SPEED = 6
 local MARGIN_WITH_BORDER = 24
 local MARGIN_WITHOUT_BORDER = 10
+-- Scene options
+local MENU = "MENU"
+local READER = "READER"
 
 -- Variables
+-- Shared
+-- The current scene being displayed
+local scene = MENU
+
+-- Menu
+-- Book selection background
+local book = graphics.image.new("book.png")
+
+-- Reader
 -- The scroll offset
 local offset = 0;
 -- The sound to play while scrolling
@@ -133,6 +145,18 @@ local init = function ()
 	assert(font)
 	graphics.setFont(font)
 
+	-- Set the background color
+	graphics.setBackgroundColor(graphics.kColorWhite)
+	playdate.display.setInverted(inverted)
+
+	initMenu()
+end
+
+function initMenu()
+end
+
+-- Initialize the reader application. Should be able to be called more than once
+function initReader()
 	-- Read something from the filesystem
 	local file = playdate.file.open("small.txt")
 	local sourceText = file:read(MAX_FILE_SIZE)
@@ -145,13 +169,12 @@ local init = function ()
 	-- Split the text into lines
 	initializeLines(initialIndex)
 
-	-- Set the background color
-	graphics.setBackgroundColor(graphics.kColorWhite)
-	playdate.display.setInverted(inverted)
-
 	-- Set up scrolling sound
 	sound:setVolume(0)
 	sound:playNote(850)
+
+	-- Reset the crank position
+	offset = 0
 end
 
 -- Draw a candle to the side of the text to indicate progress
@@ -187,7 +210,7 @@ local drawCandle = function ()
 	candleHolder:draw(LEFT - 3, DEVICE_HEIGHT - candleHolder.height)
 end
 
--- Draw call
+-- Draw the reader application
 local drawText = function ()
 	graphics.clear()
 	-- Draw offset for debugging
@@ -230,18 +253,70 @@ local drawText = function ()
 	drawCandle()
 end
 
+local drawBook = function (x, y, title, inverted)
+	if inverted then
+		graphics.setImageDrawMode(graphics.kDrawModeInverted)
+	end
+	local MAX_TEXT_WIDTH = 190
+	local cutOffText = title
+	while graphics.getTextSize(cutOffText) > MAX_TEXT_WIDTH and #cutOffText > 0 do
+		cutOffText = sub(cutOffText, 1, #cutOffText - 1)
+	end
+	if cutOffText ~= title then
+		cutOffText = cutOffText .. "..."
+	end
+	book:draw(x, y)
+	graphics.drawText(cutOffText, x + 30, y + 40)
+	graphics.setImageDrawMode(graphics.kDrawModeCopy)
+end
+
+local drawMenu = function ()
+	graphics.clear()
+	local bottom = DEVICE_HEIGHT - 100 + offset
+	local separation = 42
+	local listOfBooks = {
+		"The Lightning Thief",
+		"The Sea of Monsters",
+		"The Titan's Curse",
+		"The Battle of the Labyrinth",
+		"The Last Olympian"
+	}
+	-- Determine which book is closest to center of screen
+	local closestBook = 1
+	local closestDistance = 1000
+	for i = 1, #listOfBooks do
+		local distance = abs(bottom - separation * (i - 1) - 120)
+		if distance < closestDistance then
+			closestDistance = distance
+			closestBook = i
+		end
+	end
+	for i = 1, #listOfBooks do
+		local x = 60
+		if i % 2 == 0 then
+			x = 80
+		end
+		drawBook(x, bottom - separation * (i - 1), listOfBooks[i], i == closestBook)
+	end
+end
+
 -- Update loop
 function playdate.update()
-	drawText()
-	-- Update offset when the D-pad is held
-	offset = offset + directionHeld * BTN_SCROLL_SPEED
-	-- Modulate volume based on scroll speed
-	local vol = min(abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
-	if skipSoundTicks > 0 then
-		skipSoundTicks = skipSoundTicks - 1
-	else
-		-- Update the sound
-		sound:setVolume(vol)
+	if scene == MENU then
+		offset = max(0, offset)
+		drawMenu()
+	elseif scene == READER then
+		drawText()
+		-- Update offset when the D-pad is held
+		offset = offset + directionHeld * BTN_SCROLL_SPEED
+		-- Modulate volume based on scroll speed
+		local vol = min(abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
+		if skipSoundTicks > 0 then
+			skipSoundTicks = skipSoundTicks - 1
+		else
+			-- Update the sound
+			sound:setVolume(vol)
+		end
 	end
 end
 
