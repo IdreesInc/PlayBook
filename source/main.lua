@@ -31,13 +31,13 @@ local BTN_SCROLL_SPEED = 6
 local MARGIN_WITH_BORDER = 24
 local MARGIN_WITHOUT_BORDER = 10
 -- Scene options
-local MENU = "MENU"
+local LIBRARY = "LIBRARY"
 local READER = "READER"
 
 -- Variables
 -- Shared
 -- The current scene being displayed
-local scene = MENU
+local scene = LIBRARY
 -- The state of the books loaded from the save file
 local booksState = {}
 -- The key of the currently selected book
@@ -47,7 +47,7 @@ local currentBookSettings = nil
 -- The scroll offset
 local offset = 0;
 
--- Menu
+-- Library
 -- Book selection background
 local bookImage = graphics.image.new("book.png")
 -- List of books available in the filesystem
@@ -173,12 +173,12 @@ local init = function ()
 	graphics.setBackgroundColor(graphics.kColorWhite)
 	playdate.display.setInverted(inverted)
 
-	initMenu()
+	initLibrary()
 end
 
-function initMenu()
+function initLibrary()
 	-- Set the scene
-	scene = MENU
+	scene = LIBRARY
 
 	-- Reset variables
 	offset = 0
@@ -352,7 +352,7 @@ local drawBook = function (x, y, title, selected)
 	graphics.setImageDrawMode(graphics.kDrawModeCopy)
 end
 
-local drawMenu = function ()
+local drawLibrary = function ()
 	graphics.clear()
 	local bottom = DEVICE_HEIGHT - 100 + offset
 	local separation = 42
@@ -360,7 +360,7 @@ local drawMenu = function ()
 	highlightedBook = nil
 	local dist = 1000
 	for i = 1, #availableBooks do
-		local distance = abs(bottom - separation * (i - 1) - 120)
+		local distance = abs(bottom - separation * (i - 1) - 130)
 		if distance < dist then
 			dist = distance
 			highlightedBook = i
@@ -377,9 +377,9 @@ end
 
 -- Update loop
 function playdate.update()
-	if scene == MENU then
+	if scene == LIBRARY then
 		offset = max(0, offset)
-		drawMenu()
+		drawLibrary()
 	elseif scene == READER then
 		drawText()
 		-- Update offset when the D-pad is held
@@ -576,7 +576,7 @@ end
 -- Register input callbacks
 function playdate.cranked(change, acceleratedChange)
 	-- print("cranked", change, acceleratedChange)
-	if scene == MENU then
+	if scene == LIBRARY then
 		offset = offset - change
 	elseif scene == READER then
 		if skipScrollTicks > 0 then
@@ -628,12 +628,12 @@ end
 function playdate.AButtonDown()
 	print("A")
 	-- lines = initializeLines(sourceText)
-	if scene == MENU then
+	if scene == LIBRARY then
 		if highlightedBook ~= nil then
 			initReader(availableBooks[highlightedBook])
 		end
 	elseif scene == READER then
-		initMenu()
+		initLibrary()
 	end
 end
 
