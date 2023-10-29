@@ -44,6 +44,8 @@ local booksState = {}
 local currentBookKey = nil
 -- The state of the currently selected book
 local currentBookSettings = nil
+-- The scroll offset
+local offset = 0;
 
 -- Menu
 -- Book selection background
@@ -55,8 +57,6 @@ local availableBooks = {}
 local highlightedBook = nil
 
 -- Reader
--- The scroll offset
-local offset = 0;
 -- The sound to play while scrolling
 local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 -- The height of a line of text in the current font
@@ -179,11 +179,61 @@ end
 function initMenu()
 	-- Set the scene
 	scene = MENU
+
 	-- Reset variables
 	offset = 0
 	directionHeld = 0
 
+	-- Stop the sound
+	sound:setVolume(0)
+
 	scanForBooks()
+end
+
+-- Initialize the reader application. Should be able to be called more than once
+function initReader(selectedBook)
+	-- Set the scene
+	scene = READER
+
+	-- Reset variables
+	offset = 0
+	directionHeld = 0
+	text = nil
+	lines = {}
+	emptyLinesAbove = 0
+	skipSoundTicks = 0
+	skipScrollTicks = 0
+	previousCrankOffset = 0
+	indexAtTopOfScreen = 1
+	textProgress = 0
+
+	-- Set the current book
+	currentBookKey = selectedBook.name
+	loadCurrentBook()
+	if currentBookSettings == nil then
+		-- Should not happen
+		print("Error: currentBookSettings is nil")
+		return
+	end
+
+	-- Read the book from the filesystem
+	local file = playdate.file.open(selectedBook.path)
+	local sourceText = file:read(MAX_FILE_SIZE)
+	assert(sourceText)
+	text = preprocessText(sourceText)
+
+	-- Calculate the line height
+	lineHeight = graphics.getTextSize("A") * 1.6
+
+	-- Split the text into lines
+	initializeLines(currentBookSettings.readIndex)
+
+	-- Set up scrolling sound
+	sound:setVolume(0)
+	sound:playNote(850)
+
+	-- Reset the crank position
+	offset = 0
 end
 
 -- Scan the filesystem for books
@@ -207,42 +257,6 @@ function scanForBooks()
 	table.sort(availableBooks, function (a, b)
 		return a.name < b.name
 	end)
-	-- Print em
-	for i = 1, #availableBooks do
-		print(availableBooks[i].name)
-	end
-end
-
--- Initialize the reader application. Should be able to be called more than once
-function initReader(selectedBook)
-	-- Set the current book
-	currentBookKey = selectedBook.name
-	loadCurrentBook()
-	if currentBookSettings == nil then
-		-- Should not happen
-		print("Error: currentBookSettings is nil")
-		return
-	end
-	-- Set the scene
-	scene = READER
-	-- Read something from the filesystem
-	local file = playdate.file.open(selectedBook.path)
-	local sourceText = file:read(MAX_FILE_SIZE)
-	assert(sourceText)
-	text = preprocessText(sourceText)
-
-	-- Calculate the line height
-	lineHeight = graphics.getTextSize("A") * 1.6
-
-	-- Split the text into lines
-	initializeLines(currentBookSettings.readIndex)
-
-	-- Set up scrolling sound
-	sound:setVolume(0)
-	sound:playNote(850)
-
-	-- Reset the crank position
-	offset = 0
 end
 
 -- Draw a candle to the side of the text to indicate progress
