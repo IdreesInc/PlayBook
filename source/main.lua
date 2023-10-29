@@ -38,10 +38,21 @@ local READER = "READER"
 -- Shared
 -- The current scene being displayed
 local scene = MENU
+-- The state of the books loaded from the save file
+local booksState = {}
+-- The key of the currently selected book
+local currentBookKey = nil
+-- The state of the currently selected book
+local currentBookSettings = nil
 
 -- Menu
 -- Book selection background
-local book = graphics.image.new("book.png")
+local bookImage = graphics.image.new("book.png")
+-- List of books available in the filesystem
+-- Format: { path = "path/to/file.txt", name = "file" }
+local availableBooks = {}
+-- The book index currently highlighted by the user
+local highlightedBook = nil
 
 -- Reader
 -- The scroll offset
@@ -71,7 +82,7 @@ local skipScrollTicks = 0
 -- The crank offset from before skipScrollTicks was set
 local previousCrankOffset = 0
 -- The index of the first character to initialize lines from
-local initialIndex = 1
+-- local initialIndex = 1
 -- The start of the first line visible on the screen
 local indexAtTopOfScreen = 1
 -- The percentage (between 0 and 1) of the text that has been read
@@ -107,7 +118,11 @@ local saveState = function ()
 	print("Saving state...")
 	local state = {}
 	state.inverted = inverted
-	state.initialIndex = indexAtTopOfScreen
+	if currentBookKey ~= nil and currentBookSettings ~= nil then
+		currentBookSettings.readIndex = indexAtTopOfScreen
+		booksState[currentBookKey] = currentBookSettings
+	end
+	state.books = booksState
 	playdate.datastore.write(state)
 	print("State saved!")
 end
@@ -123,7 +138,16 @@ local loadState = function ()
 		print("State found!")
 	end
 	inverted = getOrDefault(state, "inverted", "boolean", inverted)
-	initialIndex = getOrDefault(state, "initialIndex", "number", initialIndex)
+	booksState = getOrDefault(state, "books", "table", {})
+end
+
+local loadCurrentBook = function ()
+	currentBookSettings = booksState[currentBookKey]
+	if currentBookSettings == nil then
+		print("No state found for book " .. currentBookKey .. ", using defaults")
+		currentBookSettings = {}
+	end
+	currentBookSettings.readIndex = getOrDefault(currentBookSettings, "readIndex", "number", 1)
 end
 
 function playdate.gameWillTerminate()
@@ -153,12 +177,56 @@ local init = function ()
 end
 
 function initMenu()
+	-- Set the scene
+	scene = MENU
+	-- Reset variables
+	offset = 0
+	directionHeld = 0
+
+	scanForBooks()
+end
+
+-- Scan the filesystem for books
+function scanForBooks()
+	local files = playdate.file.listFiles()
+	availableBooks = {}
+	-- Filter files to only include those that end with .txt
+	for i = #files, 1, -1 do
+		if sub(files[i], #files[i] - 3) == ".txt" then
+			-- It's a book
+			local path = files[i]
+			local name = sub(path, 1, #path - 4)
+			local book = {
+				path = path,
+				name = name
+			}
+			insert(availableBooks, book)
+		end
+	end
+	-- Sort alphabetically to ensure deterministic order
+	table.sort(availableBooks, function (a, b)
+		return a.name < b.name
+	end)
+	-- Print em
+	for i = 1, #availableBooks do
+		print(availableBooks[i].name)
+	end
 end
 
 -- Initialize the reader application. Should be able to be called more than once
-function initReader()
+function initReader(selectedBook)
+	-- Set the current book
+	currentBookKey = selectedBook.name
+	loadCurrentBook()
+	if currentBookSettings == nil then
+		-- Should not happen
+		print("Error: currentBookSettings is nil")
+		return
+	end
+	-- Set the scene
+	scene = READER
 	-- Read something from the filesystem
-	local file = playdate.file.open("small.txt")
+	local file = playdate.file.open(selectedBook.path)
 	local sourceText = file:read(MAX_FILE_SIZE)
 	assert(sourceText)
 	text = preprocessText(sourceText)
@@ -167,7 +235,7 @@ function initReader()
 	lineHeight = graphics.getTextSize("A") * 1.6
 
 	-- Split the text into lines
-	initializeLines(initialIndex)
+	initializeLines(currentBookSettings.readIndex)
 
 	-- Set up scrolling sound
 	sound:setVolume(0)
@@ -253,8 +321,8 @@ local drawText = function ()
 	drawCandle()
 end
 
-local drawBook = function (x, y, title, inverted)
-	if inverted then
+local drawBook = function (x, y, title, selected)
+	if selected then
 		graphics.setImageDrawMode(graphics.kDrawModeInverted)
 	end
 	local MAX_TEXT_WIDTH = 190
@@ -265,7 +333,7 @@ local drawBook = function (x, y, title, inverted)
 	if cutOffText ~= title then
 		cutOffText = cutOffText .. "..."
 	end
-	book:draw(x, y)
+	bookImage:draw(x, y)
 	graphics.drawText(cutOffText, x + 30, y + 40)
 	graphics.setImageDrawMode(graphics.kDrawModeCopy)
 end
@@ -274,29 +342,22 @@ local drawMenu = function ()
 	graphics.clear()
 	local bottom = DEVICE_HEIGHT - 100 + offset
 	local separation = 42
-	local listOfBooks = {
-		"The Lightning Thief",
-		"The Sea of Monsters",
-		"The Titan's Curse",
-		"The Battle of the Labyrinth",
-		"The Last Olympian"
-	}
 	-- Determine which book is closest to center of screen
-	local closestBook = 1
-	local closestDistance = 1000
-	for i = 1, #listOfBooks do
+	highlightedBook = nil
+	local dist = 1000
+	for i = 1, #availableBooks do
 		local distance = abs(bottom - separation * (i - 1) - 120)
-		if distance < closestDistance then
-			closestDistance = distance
-			closestBook = i
+		if distance < dist then
+			dist = distance
+			highlightedBook = i
 		end
 	end
-	for i = 1, #listOfBooks do
+	for i = 1, #availableBooks do
 		local x = 60
 		if i % 2 == 0 then
 			x = 80
 		end
-		drawBook(x, bottom - separation * (i - 1), listOfBooks[i], i == closestBook)
+		drawBook(x, bottom - separation * (i - 1), availableBooks[i].name, i == highlightedBook)
 	end
 end
 
@@ -501,12 +562,16 @@ end
 -- Register input callbacks
 function playdate.cranked(change, acceleratedChange)
 	-- print("cranked", change, acceleratedChange)
-	if skipScrollTicks > 0 then
-		skipScrollTicks = skipScrollTicks - 1
-		offset = offset - previousCrankOffset
-	else
-		offset = offset - change * CRANK_SCROLL_SPEED
-		previousCrankOffset = change * CRANK_SCROLL_SPEED
+	if scene == MENU then
+		offset = offset - change
+	elseif scene == READER then
+		if skipScrollTicks > 0 then
+			skipScrollTicks = skipScrollTicks - 1
+			offset = offset - previousCrankOffset
+		else
+			offset = offset - change * CRANK_SCROLL_SPEED
+			previousCrankOffset = change * CRANK_SCROLL_SPEED
+		end
 	end
 end
 
@@ -549,6 +614,13 @@ end
 function playdate.AButtonDown()
 	print("A")
 	-- lines = initializeLines(sourceText)
+	if scene == MENU then
+		if highlightedBook ~= nil then
+			initReader(availableBooks[highlightedBook])
+		end
+	elseif scene == READER then
+		initMenu()
+	end
 end
 
 function playdate.BButtonDown()
