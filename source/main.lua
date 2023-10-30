@@ -1,17 +1,17 @@
-import 'CoreLibs/graphics.lua'
+import 'CoreLibs/graphics'
+import "CoreLibs/ui"
+import "CoreLibs/crank"
 
-local playdate = playdate
-local graphics = playdate.graphics
-local min = math.min
-local max = math.max
-local abs = math.abs
-local floor = math.floor
-local ceil = math.ceil
-local sub = string.sub
-local insert = table.insert
-
--- 50 Hz is max refresh rate
-playdate.display.setRefreshRate(50)
+local playdate <const> = playdate
+local graphics <const> = playdate.graphics
+local json <const> = playdate.json
+local min <const> = math.min
+local max <const> = math.max
+local abs <const> = math.abs
+local floor <const> = math.floor
+local ceil <const> = math.ceil
+local sub <const> = string.sub
+local insert <const> = table.insert
 
 -- Constants
 -- The maximum size of a file to read in bytes
@@ -28,18 +28,63 @@ local MAX_VOLUME = 0.025
 local CRANK_SCROLL_SPEED = 1.2
 -- The speed of scrolling via the D-pad
 local BTN_SCROLL_SPEED = 6
-local MARGIN_WITH_BORDER = 24
-local MARGIN_WITHOUT_BORDER = 10
+local MARGIN_WITH_BORDER = 22
+local MARGIN_WITHOUT_BORDER = 6
+local BOOK_SEPARATION = 42
+-- The font options available
+local FONTS <const> = {
+	{
+		name = "Roboto Slab",
+		font = graphics.font.new("fonts/roboto-slab-12")
+	},
+	{
+		name = "Roobert",
+		font = graphics.font.new("fonts/roobert/Roobert-11-Medium")
+	},
+}
+-- Scene names
+local LIBRARY = "LIBRARY"
+local READER = "READER"
 
 -- Variables
+
+-- Loaded from Save State
+-- Whether the screen is inverted
+local inverted = false
+-- The font key of the font to use for the reader
+local readerFontId = 1
+-- The current speed modifier for the crank
+local crankSpeedModifier = 1
+-- The state of the books loaded from the save file
+local booksState = {}
+local progressIndicator = 2
+
+-- Shared
+-- The current scene being displayed
+local scene = LIBRARY
+-- The key of the currently selected book
+local currentBookKey = nil
+-- The state of the currently selected book
+local currentBookSettings = nil
 -- The scroll offset
 local offset = 0;
+-- Whether the scroll sound should be played
+local playScrollSound = true
+
+-- Library
+-- Book selection background
+local bookImage = graphics.image.new("book.png")
+-- List of books available in the filesystem
+-- Format: { path = "path/to/file.txt", name = "file" }
+local availableBooks = {}
+-- The book index currently highlighted by the user
+local highlightedBook = nil
+
+-- Reader
 -- The sound to play while scrolling
 local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 -- The height of a line of text in the current font
 local lineHeight = 0
--- Whether the screen is inverted
-local inverted = false
 -- The direction the user is scrolling via the D-pad
 local directionHeld = 0
 -- The margin on the left of the screen
@@ -59,11 +104,134 @@ local skipScrollTicks = 0
 -- The crank offset from before skipScrollTicks was set
 local previousCrankOffset = 0
 -- The index of the first character to initialize lines from
-local initialIndex = 1
+-- local initialIndex = 1
 -- The start of the first line visible on the screen
 local indexAtTopOfScreen = 1
 -- The percentage (between 0 and 1) of the text that has been read
 local textProgress = 0
+-- Whether the options menu is visible and active
+local menuActive = false
+
+-- Menu
+-- The views for each option
+local optionViews = {}
+-- The index of the currently selected option
+local activeSetting = 1
+-- The width of the options menu
+local OPTIONS_WIDTH = 150
+-- The options for the menu
+local MENU_OPTIONS <const> = {
+	{
+		label = "Theme",
+		options =  {
+			"Light Mode",
+			"Dark Mode"
+		},
+		initialValue = function ()
+			if inverted then
+				return 2
+			else
+				return 1
+			end
+		end,
+		callback = function (index)
+			if index == 1 then
+				setInverted(false)
+			else
+				setInverted(true)
+			end
+		end
+	},
+	{
+		label = "Reader Font",
+		-- Dynamically generated
+		options = {},
+		initialValue = function ()
+			return readerFontId
+		end,
+		callback = function (index)
+			readerFontId = index
+			reloadReader()
+		end
+	},
+	{
+		label = "Crank Speed",
+		options =  {
+			"Slower",
+			"Default",
+			"Faster"
+		},
+		initialValue = function ()
+			if crankSpeedModifier == 0.75 then
+				return 1
+			elseif crankSpeedModifier == 1 then
+				return 2
+			elseif crankSpeedModifier == 1.25 then
+				return 3
+			else
+				print("Warning: invalid crank speed modifier " .. crankSpeedModifier)
+				return 2
+			end
+		end,
+		callback = function (index)
+			if index == 1 then
+				crankSpeedModifier = 0.75
+			elseif index == 2 then
+				crankSpeedModifier = 1
+			elseif index == 3 then
+				crankSpeedModifier = 1.5
+			end
+		end
+	},
+	{
+		label = "Display Candle",
+		options =  {
+			"Enabled",
+			"Disabled"
+		},
+		initialValue = function ()
+			if progressIndicator == 2 then
+				return 1
+			else
+				return 2
+			end
+		end,
+		callback = function (index)
+			if index == 1 then
+				setProgressIndicator(2)
+			elseif index == 2 then
+				setProgressIndicator(1)
+			end
+		end
+	},
+	{
+		label = "Scroll Sound",
+		options =  {
+			"Enabled",
+			"Disabled"
+		},
+		initialValue = function ()
+			if playScrollSound then
+				return 1
+			else
+				return 2
+			end
+		end,
+		callback = function (index)
+			if index == 1 then
+				playScrollSound = true
+			elseif index == 2 then
+				playScrollSound = false
+			end
+		end
+	},
+}
+
+-- Generate the options for the reader font menu
+for i = 1, #FONTS do
+	insert(MENU_OPTIONS[2].options, FONTS[i].name)
+end
+
 -- Candle parts
 local candleFlameOne = graphics.image.new("candle-flame-1.png")
 local candleFlameTwo = graphics.image.new("candle-flame-2.png")
@@ -95,9 +263,18 @@ local saveState = function ()
 	print("Saving state...")
 	local state = {}
 	state.inverted = inverted
-	state.initialIndex = indexAtTopOfScreen
+	if currentBookKey ~= nil and currentBookSettings ~= nil then
+		currentBookSettings.readIndex = indexAtTopOfScreen
+		booksState[currentBookKey] = currentBookSettings
+	end
+	state.books = booksState
+	state.font = readerFontId
+	state.crankSpeedModifier = crankSpeedModifier
+	state.progressIndicator = progressIndicator
+	state.playScrollSound = playScrollSound
 	playdate.datastore.write(state)
 	print("State saved!")
+	-- print("State saved: " .. json.encode(state))
 end
 
 -- Load the state of the game from the datastore
@@ -110,8 +287,21 @@ local loadState = function ()
 	else
 		print("State found!")
 	end
-	inverted = getOrDefault(state, "inverted", "boolean", inverted)
-	initialIndex = getOrDefault(state, "initialIndex", "number", initialIndex)
+	setInverted(getOrDefault(state, "inverted", "boolean", inverted))
+	booksState = getOrDefault(state, "books", "table", {})
+	readerFontId = getOrDefault(state, "font", "number", readerFontId)
+	crankSpeedModifier = getOrDefault(state, "crankSpeedModifier", "number", crankSpeedModifier)
+	setProgressIndicator(getOrDefault(state, "progressIndicator", "number", progressIndicator))
+	playScrollSound = getOrDefault(state, "playScrollSound", "boolean", playScrollSound)
+end
+
+local loadCurrentBookSettings = function ()
+	currentBookSettings = booksState[currentBookKey]
+	if currentBookSettings == nil then
+		print("No state found for book " .. currentBookKey .. ", using defaults")
+		currentBookSettings = {}
+	end
+	currentBookSettings.readIndex = getOrDefault(currentBookSettings, "readIndex", "number", 1)
 end
 
 function playdate.gameWillTerminate()
@@ -127,31 +317,142 @@ function playdate.deviceWillLock()
 end
 
 local init = function ()
+	-- 50 Hz is max refresh rate
+	playdate.display.setRefreshRate(50)
+
+	-- Load the state
 	loadState()
+
 	-- Load the font
-	local font = graphics.font.new("fonts/RobotoSlab-VariableFont_wght-12")
-	assert(font)
-	graphics.setFont(font)
-
-	-- Read something from the filesystem
-	local file = playdate.file.open("small.txt")
-	local sourceText = file:read(MAX_FILE_SIZE)
-	assert(sourceText)
-	text = preprocessText(sourceText)
-
-	-- Calculate the line height
-	lineHeight = graphics.getTextSize("A") * 1.6
-
-	-- Split the text into lines
-	initializeLines(initialIndex)
+	graphics.setFont(FONTS[readerFontId].font)
 
 	-- Set the background color
 	graphics.setBackgroundColor(graphics.kColorWhite)
-	playdate.display.setInverted(inverted)
+	setInverted(inverted)
+
+	initLibrary()
+	initMenu()
+end
+
+-- Initialize the book selection menu, can be called more than once
+function initLibrary()
+	-- Set the scene
+	scene = LIBRARY
+
+	-- Reset variables
+	offset = 0
+	directionHeld = 0
+
+	-- Stop the sound
+	sound:setVolume(0)
+
+	scanForBooks()
+end
+
+-- Load the given book into memory
+function loadBook(selectedBook)
+	-- Reset variables
+	text = nil
+
+	-- Set the current book
+	currentBookKey = selectedBook.name
+	loadCurrentBookSettings()
+
+	-- Read the book from the filesystem
+	local file = playdate.file.open(selectedBook.path)
+	local sourceText = file:read(MAX_FILE_SIZE)
+	assert(sourceText)
+	text = preprocessText(sourceText)
+end
+
+-- Start or restart the reader application
+function reloadReader()
+	-- Set the scene
+	scene = READER
+
+	-- Reset variables
+	offset = 0
+	directionHeld = 0
+	lines = {}
+	emptyLinesAbove = 0
+	skipSoundTicks = 0
+	skipScrollTicks = 0
+	previousCrankOffset = 0
+	textProgress = 0
 
 	-- Set up scrolling sound
 	sound:setVolume(0)
 	sound:playNote(850)
+
+	-- Reset the crank position
+	offset = 0
+
+	-- Update the font
+	graphics.setFont(FONTS[readerFontId].font)
+
+	-- Calculate the line height
+	lineHeight = graphics.getTextSize("A") * 1.6
+
+	if currentBookSettings == nil then
+		-- Should not happen
+		print("Error: currentBookSettings is nil")
+		return
+	end
+
+	-- Split the text into lines
+	initializeLines(currentBookSettings.readIndex)
+end
+
+-- Initialize the options menu, only needs to be called once as it is not a separate scene
+function initMenu()
+	for i = 1, #MENU_OPTIONS do
+		local options = MENU_OPTIONS[i].options
+		local gridview = playdate.ui.gridview.new(OPTIONS_WIDTH, 28)
+		gridview:setNumberOfRows(1)
+		gridview:setNumberOfColumns(#options)
+		local initialValue = MENU_OPTIONS[i].initialValue()
+		-- Need to select next column multiple times due to SDK limitations
+		for j = 1, initialValue - 1 do
+			gridview:selectNextColumn(false, true, false)
+		end
+		function gridview:drawCell(section, row, column, selected, x, y, width, height)
+			if selected then
+				if activeSetting == i then
+					graphics.fillRoundRect(x, y, width, height, 4)
+					graphics.setImageDrawMode(graphics.kDrawModeFillWhite)
+				else
+					graphics.drawRoundRect(x, y, width, height, 4)
+				end
+			end
+			local fontHeight = graphics.getSystemFont():getHeight()
+			graphics.setFont(graphics.getSystemFont())
+			graphics.drawTextInRect(options[column], x, y + (height / 2 - fontHeight / 2) + 2, width, height, nil, nil, kTextAlignment.center)
+		end
+		optionViews[i] = gridview
+	end
+end
+
+-- Scan the filesystem for books
+function scanForBooks()
+	local files = playdate.file.listFiles()
+	availableBooks = {}
+	-- Filter files to only include those that end with .txt
+	for i = #files, 1, -1 do
+		if sub(files[i], #files[i] - 3) == ".txt" then
+			-- It's a book
+			local path = files[i]
+			local name = sub(path, 1, #path - 4)
+			local book = {
+				path = path,
+				name = name
+			}
+			insert(availableBooks, book)
+		end
+	end
+	-- Sort alphabetically to ensure deterministic order
+	table.sort(availableBooks, function (a, b)
+		return a.name < b.name
+	end)
 end
 
 -- Draw a candle to the side of the text to indicate progress
@@ -187,9 +488,10 @@ local drawCandle = function ()
 	candleHolder:draw(LEFT - 3, DEVICE_HEIGHT - candleHolder.height)
 end
 
--- Draw call
+-- Draw the reader application
 local drawText = function ()
 	graphics.clear()
+	graphics.setFont(FONTS[readerFontId].font)
 	-- Draw offset for debugging
 	-- graphics.drawText(playdate.getCrankPosition(), leftMargin, offset)
 	if #lines > 0 then
@@ -227,22 +529,133 @@ local drawText = function ()
 			removeLines(appendLines(lineRange), false)
 		end
 	end
-	drawCandle()
+	if progressIndicator == 2 then
+		drawCandle()
+	end
+end
+
+local drawBook = function (x, y, title, selected)
+	graphics.setFont(FONTS[1].font)
+	if selected then
+		graphics.setImageDrawMode(graphics.kDrawModeInverted)
+	end
+	local MAX_TEXT_WIDTH = 190
+	local cutOffText = title
+	while graphics.getTextSize(cutOffText) > MAX_TEXT_WIDTH and #cutOffText > 0 do
+		cutOffText = sub(cutOffText, 1, #cutOffText - 1)
+	end
+	if cutOffText ~= title then
+		cutOffText = cutOffText .. "..."
+	end
+	bookImage:draw(x, y)
+	graphics.drawText(cutOffText, x + 30, y + 40)
+	graphics.setImageDrawMode(graphics.kDrawModeCopy)
+end
+
+local drawLibrary = function ()
+	graphics.clear()
+	local bottom = DEVICE_HEIGHT - 100 + offset
+	local separation = BOOK_SEPARATION
+	-- Determine which book is closest to center of screen
+	highlightedBook = nil
+	local dist = 1000
+	for i = 1, #availableBooks do
+		local distance = abs(bottom - separation * (i - 1) - 130)
+		if distance < dist then
+			dist = distance
+			highlightedBook = i
+		end
+	end
+	for i = 1, #availableBooks do
+		local x = 60
+		if i % 2 == 0 then
+			x = 80
+		end
+		drawBook(x, bottom - separation * (i - 1), availableBooks[i].name, i == highlightedBook)
+	end
+end
+
+function previousOption()
+	optionViews[activeSetting]:selectPreviousColumn(true)
+	local _, _, selCol = optionViews[activeSetting]:getSelection()
+	MENU_OPTIONS[activeSetting].callback(selCol)
+end
+
+function nextOption()
+	optionViews[activeSetting]:selectNextColumn(true)
+	local _, _, selCol = optionViews[activeSetting]:getSelection()
+	MENU_OPTIONS[activeSetting].callback(selCol)
+end
+
+function previousSetting()
+	activeSetting = activeSetting - 1
+	if activeSetting < 1 then
+		activeSetting = #optionViews
+	end
+end
+
+function nextSetting()
+	activeSetting = activeSetting + 1
+	if activeSetting > #optionViews then
+		activeSetting = 1
+	end
+end
+
+local drawMenu = function ()
+	graphics.clear()
+	local menuWidth = 270
+	local optionRowHeight = 32
+	local topMargin = DEVICE_HEIGHT / 2 - (#optionViews - 1) * optionRowHeight / 2 - 11
+	for i = 1, #optionViews do
+		graphics.setFont(graphics.getSystemFont())
+		local label = MENU_OPTIONS[i].label
+		graphics.drawText("*" .. label .. "*", (DEVICE_WIDTH - menuWidth) / 2, topMargin + (i - 1) * optionRowHeight + optionRowHeight / 2 - 11)
+		local optionsX = (DEVICE_WIDTH - menuWidth) / 2 +  (menuWidth - OPTIONS_WIDTH)
+		optionViews[i]:drawInRect(optionsX, topMargin + (i - 1) * optionRowHeight, OPTIONS_WIDTH, optionRowHeight)
+	end
+	graphics.setFont(FONTS[readerFontId].font)
+	if playdate.buttonJustPressed(playdate.kButtonLeft) then
+		previousOption()
+	end
+	if playdate.buttonJustPressed(playdate.kButtonRight) then
+		nextOption()
+	end
+	if playdate.buttonJustPressed(playdate.kButtonUp) then
+		previousSetting()
+	end
+	if playdate.buttonJustPressed(playdate.kButtonDown) then
+		nextSetting()
+	end
 end
 
 -- Update loop
 function playdate.update()
-	drawText()
-	-- Update offset when the D-pad is held
-	offset = offset + directionHeld * BTN_SCROLL_SPEED
-	-- Modulate volume based on scroll speed
-	local vol = min(abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
-	if skipSoundTicks > 0 then
-		skipSoundTicks = skipSoundTicks - 1
-	else
-		-- Update the sound
-		sound:setVolume(vol)
+	if scene == LIBRARY then
+		offset = max(0, offset)
+		offset = min(offset, (#availableBooks - 1) * BOOK_SEPARATION - BOOK_SEPARATION / 2)
+		drawLibrary()
+	elseif scene == READER then
+		drawText()
+		-- Update offset when the D-pad is held
+		offset = offset + directionHeld * BTN_SCROLL_SPEED
+		if menuActive or not playScrollSound then
+			sound:setVolume(0)
+		else
+			-- Modulate volume based on scroll speed
+			local vol = min(abs(playdate.getCrankChange() * VOLUME_ACCELERATION * MAX_VOLUME), MAX_VOLUME)
+			if skipSoundTicks > 0 then
+				skipSoundTicks = skipSoundTicks - 1
+			else
+				-- Update the sound
+				sound:setVolume(vol)
+			end
+		end
 	end
+	if menuActive then
+		-- Draw menu over everything else
+		drawMenu()
+	end
+	playdate.timer.updateTimers()
 end
 
 -- Initialize the first batch of lines
@@ -345,6 +758,8 @@ function addLines(additionalLines, append, startChar)
 			lineStart = lineStop - #nextLine
 		end
 	end
+	local testLength = graphics.getTextSize("  ")
+	local minCharSize = graphics.getTextSize("i")
 	-- Add lines until the target number of lines is reached
 	while numOfLines < initialNumOfLines + additionalLines do
 		if charIndex < 1 or charIndex > textSize then
@@ -354,7 +769,8 @@ function addLines(additionalLines, append, startChar)
 			break
 		end
 		local char = sub(text, charIndex, charIndex)
-		local charSize = graphics.getTextSize(char)
+		-- Necessary hack for characters like comma and period
+		local charSize = max(minCharSize, graphics.getTextSize(" " .. char .. " ") - testLength)
 		local combined
 		if append then
 			combined = currentLine .. char
@@ -420,24 +836,64 @@ end
 function preprocessText(text)
 	-- Remove tabs
 	local newText = string.gsub(text, "	", "")
+	-- Collapse multiple newlines into two
+	newText = string.gsub(newText, "\n\n+", "\n\n")
 	return newText
+end
+
+function setInverted(darkMode)
+	inverted = darkMode
+	playdate.display.setInverted(inverted)
+end
+
+function setProgressIndicator(indicator)
+	progressIndicator = indicator
+	if progressIndicator == 2 then
+		rightMargin = MARGIN_WITH_BORDER
+	else
+		rightMargin = MARGIN_WITHOUT_BORDER
+	end
+	reloadReader()
 end
 
 -- Register input callbacks
 function playdate.cranked(change, acceleratedChange)
 	-- print("cranked", change, acceleratedChange)
-	if skipScrollTicks > 0 then
-		skipScrollTicks = skipScrollTicks - 1
-		offset = offset - previousCrankOffset
-	else
-		offset = offset - change * CRANK_SCROLL_SPEED
-		previousCrankOffset = change * CRANK_SCROLL_SPEED
+	if scene == LIBRARY then
+		offset = offset - change
+	elseif scene == READER then
+		if menuActive then
+			local ticks = playdate.getCrankTicks(8)
+			if ticks == 1 then
+				nextSetting()
+			elseif ticks == -1 then
+				previousSetting()
+			end
+		else
+			if skipScrollTicks > 0 then
+				skipScrollTicks = skipScrollTicks - 1
+				offset = offset - previousCrankOffset
+			else
+				offset = offset - change * CRANK_SCROLL_SPEED * crankSpeedModifier
+				previousCrankOffset = change * CRANK_SCROLL_SPEED * crankSpeedModifier
+			end
+		end
 	end
 end
 
 function playdate.upButtonDown()
 	print("up")
-	directionHeld = 1
+	if scene == LIBRARY then
+		if highlightedBook == 1 then
+			offset = offset + BOOK_SEPARATION / 2
+		else
+			offset = offset + BOOK_SEPARATION
+		end
+	else
+		if not menuActive then
+			directionHeld = 1
+		end
+	end
 end
 
 function playdate.upButtonUp()
@@ -446,7 +902,13 @@ end
 
 function playdate.downButtonDown()
 	print("down")
-	directionHeld = -1
+	if scene == LIBRARY then
+		offset = offset - BOOK_SEPARATION
+	else
+		if not menuActive then
+			directionHeld = -1
+		end
+	end
 end
 
 function playdate.downButtonUp()
@@ -473,13 +935,32 @@ end
 
 function playdate.AButtonDown()
 	print("A")
-	-- lines = initializeLines(sourceText)
+	if scene == LIBRARY then
+		if highlightedBook ~= nil then
+			loadBook(availableBooks[highlightedBook])
+			reloadReader()
+		end
+	elseif scene == READER then
+		if not menuActive then
+			saveState()
+			menuActive = true
+		else
+			saveState()
+			menuActive = false
+		end
+	end
 end
 
 function playdate.BButtonDown()
 	print("B")
-	inverted = not inverted
-	playdate.display.setInverted(inverted)
+	-- setInverted(not inverted)
+	if menuActive then
+		saveState()
+		menuActive = false
+	elseif scene == READER then
+		saveState()
+		initLibrary()
+	end
 end
 
 init()
