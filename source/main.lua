@@ -41,6 +41,10 @@ local FONTS <const> = {
 		name = "Roobert",
 		font = graphics.font.new("fonts/roobert/Roobert-11-Medium")
 	},
+	{
+		name = "Monocraft",
+		font = graphics.font.new("fonts/monocraft-18")
+	},
 }
 -- Scene names
 local LIBRARY = "LIBRARY"
@@ -151,6 +155,7 @@ local MENU_OPTIONS <const> = {
 		end,
 		callback = function (index)
 			readerFontId = index
+			print("Setting font to " .. FONTS[readerFontId].name)
 			reloadReader()
 		end
 	},
