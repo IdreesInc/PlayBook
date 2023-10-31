@@ -77,7 +77,7 @@ local playScrollSound = true
 
 -- Library
 -- Book selection background
-local bookImage <const> = graphics.image.new("book.png")
+local bookImage <const> = graphics.image.new("images/book.png")
 -- List of books available in the filesystem
 -- Format: { path = "path/to/file.txt", name = "file" }
 local availableBooks = {}
@@ -86,7 +86,7 @@ local highlightedBook = nil
 -- The offset of the falling book animation
 local fallingBookProgress = 0
 -- The PlayBook title image
-local titleImage <const> = graphics.image.new("title.png")
+local titleImage <const> = graphics.image.new("images/title.png")
 -- A list of potential subtitles to display
 local POSSIBLE_SUBTITLES <const> = {
 	{"Made by Idrees"},
@@ -255,14 +255,14 @@ for i = 1, #FONTS do
 end
 
 -- Candle parts
-local candleFlameOne = graphics.image.new("candle-flame-1.png")
-local candleFlameTwo = graphics.image.new("candle-flame-2.png")
-local candleFlameThree = graphics.image.new("candle-flame-3.png")
-local candleTop = graphics.image.new("candle-top.png")
-local candleSection = graphics.image.new("candle-section.png")
-local candleDripLeft = graphics.image.new("candle-drip-left.png")
-local candleDripRight = graphics.image.new("candle-drip-right.png")
-local candleHolder = graphics.image.new("candle-holder.png")
+local candleFlameOne = graphics.image.new("images/candle-flame-1.png")
+local candleFlameTwo = graphics.image.new("images/candle-flame-2.png")
+local candleFlameThree = graphics.image.new("images/candle-flame-3.png")
+local candleTop = graphics.image.new("images/candle-top.png")
+local candleSection = graphics.image.new("images/candle-section.png")
+local candleDripLeft = graphics.image.new("images/candle-drip-left.png")
+local candleDripRight = graphics.image.new("images/candle-drip-right.png")
+local candleHolder = graphics.image.new("images/candle-holder.png")
 -- The flame frame currently being displayed
 local flame = candleFlameOne
 
