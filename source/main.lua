@@ -824,8 +824,14 @@ function addLines(additionalLines, append, startChar)
 			combined = char .. currentLine
 		end
 		if char == "\n" then
-			-- Newline is converted to a space before being added so it counts
-			-- as a character without the draw func printing an extra newline
+			-- Line is added to the list immediately to avoid reinserting the newline the next
+			-- time this function is called
+			if append then
+				lineStop = charIndex
+			else
+				lineStart = charIndex
+			end
+			-- Newline is replaced with whitespace (at the end of the line to avoid printing)
 			insertLine(currentLine .. " ", lineStart, lineStop)
 		elseif lineSize + charSize > MAX_WIDTH then
 			if lastSpace then
