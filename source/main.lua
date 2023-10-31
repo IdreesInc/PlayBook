@@ -15,22 +15,22 @@ local insert <const> = table.insert
 
 -- Constants
 -- The maximum size of a file to read in bytes
-local MAX_FILE_SIZE = 4 * 1024 * 1024
+local MAX_FILE_SIZE <const> = 4 * 1024 * 1024
 -- The width of the screen in pixels
-local DEVICE_WIDTH = 400
+local DEVICE_WIDTH <const> = 400
 -- The height of the screen in pixels
-local DEVICE_HEIGHT = 240
+local DEVICE_HEIGHT <const> = 240
 -- The acceleration of the volume while scrolling
-local VOLUME_ACCELERATION = 0.05
+local VOLUME_ACCELERATION <const> = 0.05
 -- The maximum volume of the scrolling noise
-local MAX_VOLUME = 0.025
+local MAX_VOLUME <const> = 0.025
 -- The speed of scrolling via the crank
-local CRANK_SCROLL_SPEED = 1.2
+local CRANK_SCROLL_SPEED <const> = 1.2
 -- The speed of scrolling via the D-pad
-local BTN_SCROLL_SPEED = 6
-local MARGIN_WITH_BORDER = 22
-local MARGIN_WITHOUT_BORDER = 6
-local BOOK_SEPARATION = 42
+local BTN_SCROLL_SPEED <const> = 6
+local MARGIN_WITH_BORDER <const> = 22
+local MARGIN_WITHOUT_BORDER <const> = 6
+local BOOK_SEPARATION <const> = 42
 -- The font options available
 local FONTS <const> = {
 	{
@@ -77,16 +77,33 @@ local playScrollSound = true
 
 -- Library
 -- Book selection background
-local bookImage = graphics.image.new("book.png")
+local bookImage <const> = graphics.image.new("book.png")
 -- List of books available in the filesystem
 -- Format: { path = "path/to/file.txt", name = "file" }
 local availableBooks = {}
 -- The book index currently highlighted by the user
 local highlightedBook = nil
+-- The offset of the falling book animation
+local fallingBookProgress = 0
+-- The PlayBook title image
+local titleImage <const> = graphics.image.new("title.png")
+-- A list of potential subtitles to display
+local POSSIBLE_SUBTITLES <const> = {
+	{"Made by Idrees"},
+	{ "A reader lives a thousand", "lives before he dies" },
+	{"Books are a uniquely", "portable magic"},
+	{"Books are the mirrors", "of the soul."},
+	{"There is no friend", "as loyal as a book"},
+	{"We read to know", "we're not alone"},
+	{"A book is a dream", "that you hold in your hand"},
+	{"A book is a device", "to ignite the imagination"},
+}
+-- The subtitle currently being displayed
+local subtitle = POSSIBLE_SUBTITLES[8]
 
 -- Reader
 -- The sound to play while scrolling
-local sound = playdate.sound.synth.new(playdate.sound.kWaveNoise)
+local sound <const> = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 -- The height of a line of text in the current font
 local lineHeight = 0
 -- The direction the user is scrolling via the D-pad
@@ -122,7 +139,7 @@ local optionViews = {}
 -- The index of the currently selected option
 local activeSetting = 1
 -- The width of the options menu
-local OPTIONS_WIDTH = 150
+local OPTIONS_WIDTH <const> = 150
 -- The options for the menu
 local MENU_OPTIONS <const> = {
 	{
@@ -348,6 +365,9 @@ function initLibrary()
 	offset = 0
 	directionHeld = 0
 
+	fallingBookProgress = 0 - DEVICE_HEIGHT * 3
+	subtitle = POSSIBLE_SUBTITLES[math.random(#POSSIBLE_SUBTITLES)]
+
 	-- Stop the sound
 	sound:setVolume(0)
 
@@ -539,28 +559,40 @@ local drawText = function ()
 	end
 end
 
+-- Draw an individual book
 local drawBook = function (x, y, title, selected)
 	graphics.setFont(FONTS[1].font)
 	if selected then
 		graphics.setImageDrawMode(graphics.kDrawModeInverted)
 	end
-	local MAX_TEXT_WIDTH = 190
+	local MAX_TEXT_WIDTH = 200
 	local cutOffText = title
 	while graphics.getTextSize(cutOffText) > MAX_TEXT_WIDTH and #cutOffText > 0 do
 		cutOffText = sub(cutOffText, 1, #cutOffText - 1)
 	end
+	local marginX = 30
 	if cutOffText ~= title then
 		cutOffText = cutOffText .. "..."
+		marginX = 25
 	end
+	-- Center
 	bookImage:draw(x, y)
-	graphics.drawText(cutOffText, x + 30, y + 40)
+	graphics.drawText(cutOffText, x + marginX, y + 40)
 	graphics.setImageDrawMode(graphics.kDrawModeCopy)
 end
 
 local drawLibrary = function ()
 	graphics.clear()
-	local bottom = DEVICE_HEIGHT - 100 + offset
+	local bottom = DEVICE_HEIGHT - 90 + offset
 	local separation = BOOK_SEPARATION
+	-- Draw title
+	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 + 0 + offset)
+	for i = 1, #subtitle do
+		local width, height = graphics.getTextSize(subtitle[i])
+		graphics.drawText(subtitle[i], DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 30 + offset + 20 * i)
+	end
+	-- local width, height = graphics.getTextSize(subtitle)
+	-- graphics.drawText(subtitle, DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 20)
 	-- Determine which book is closest to center of screen
 	highlightedBook = nil
 	local dist = 1000
@@ -571,27 +603,35 @@ local drawLibrary = function ()
 			highlightedBook = i
 		end
 	end
+	-- Draw books
+	fallingBookProgress = fallingBookProgress + 16
 	for i = 1, #availableBooks do
 		local x = 60
 		if i % 2 == 0 then
 			x = 80
 		end
-		drawBook(x, bottom - separation * (i - 1), availableBooks[i].name, i == highlightedBook)
+		local fallingY = fallingBookProgress - separation * (i - 1) * 4
+		local endY = bottom - separation * (i - 1)
+		local y = min(endY, fallingY)
+		drawBook(x, y, availableBooks[i].name, i == highlightedBook)
 	end
 end
 
+-- Scroll to the previous option in selected setting
 function previousOption()
 	optionViews[activeSetting]:selectPreviousColumn(true)
 	local _, _, selCol = optionViews[activeSetting]:getSelection()
 	MENU_OPTIONS[activeSetting].callback(selCol)
 end
 
+-- Scroll to the next option in the selected setting
 function nextOption()
 	optionViews[activeSetting]:selectNextColumn(true)
 	local _, _, selCol = optionViews[activeSetting]:getSelection()
 	MENU_OPTIONS[activeSetting].callback(selCol)
 end
 
+-- Scroll to the previous setting in the menu
 function previousSetting()
 	activeSetting = activeSetting - 1
 	if activeSetting < 1 then
@@ -599,6 +639,7 @@ function previousSetting()
 	end
 end
 
+-- Scroll to the next setting in the menu
 function nextSetting()
 	activeSetting = activeSetting + 1
 	if activeSetting > #optionViews then
@@ -665,9 +706,9 @@ end
 
 -- Initialize the first batch of lines
 function initializeLines(startChar)
-	appendLines(20, startChar)
+	local linesAdded = appendLines(20, startChar)
+	prependLines(20 - linesAdded)
 	emptyLinesAbove = 0
-	print(#lines)
 end
 
 -- Remove the given number of lines
@@ -887,7 +928,7 @@ function playdate.cranked(change, acceleratedChange)
 end
 
 function playdate.upButtonDown()
-	print("up")
+	-- print("up")
 	if scene == LIBRARY then
 		if highlightedBook == 1 then
 			offset = offset + BOOK_SEPARATION / 2
@@ -906,7 +947,7 @@ function playdate.upButtonUp()
 end
 
 function playdate.downButtonDown()
-	print("down")
+	-- print("down")
 	if scene == LIBRARY then
 		offset = offset - BOOK_SEPARATION
 	else
@@ -921,7 +962,7 @@ function playdate.downButtonUp()
 end
 
 function playdate.leftButtonDown()
-	print("left")
+	-- print("left")
 	directionHeld = 6
 end
 
@@ -930,7 +971,7 @@ function playdate.leftButtonUp()
 end
 
 function playdate.rightButtonDown()
-	print("right")
+	-- print("right")
 	directionHeld = -6
 end
 
@@ -939,7 +980,7 @@ function playdate.rightButtonUp()
 end
 
 function playdate.AButtonDown()
-	print("A")
+	-- print("A")
 	if scene == LIBRARY then
 		if highlightedBook ~= nil then
 			loadBook(availableBooks[highlightedBook])
@@ -957,7 +998,7 @@ function playdate.AButtonDown()
 end
 
 function playdate.BButtonDown()
-	print("B")
+	-- print("B")
 	-- setInverted(not inverted)
 	if menuActive then
 		saveState()
