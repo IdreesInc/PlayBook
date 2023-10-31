@@ -46,6 +46,7 @@ local FONTS <const> = {
 		font = graphics.font.new("fonts/monocraft-18")
 	},
 }
+local MANUAL_NAME <const> = "The PlayBook Manual.txt"
 -- Scene names
 local LIBRARY = "LIBRARY"
 local READER = "READER"
@@ -61,7 +62,10 @@ local readerFontId = 1
 local crankSpeedModifier = 1
 -- The state of the books loaded from the save file
 local booksState = {}
+-- Which progress indicator to use (1 = none, 2 = candle)
 local progressIndicator = 2
+-- Whether to show the books included with the app
+local showDefaultBooks = true
 
 -- Shared
 -- The current scene being displayed
@@ -247,6 +251,27 @@ local MENU_OPTIONS <const> = {
 			end
 		end
 	},
+	{
+		label = "Included Books",
+		options =  {
+			"Shown in Library",
+			"Hidden"
+		},
+		initialValue = function ()
+			if showDefaultBooks then
+				return 1
+			else
+				return 2
+			end
+		end,
+		callback = function (index)
+			if index == 1 then
+				showDefaultBooks = true
+			elseif index == 2 then
+				showDefaultBooks = false
+			end
+		end
+	},
 }
 
 -- Generate the options for the reader font menu
@@ -294,6 +319,7 @@ local saveState = function ()
 	state.crankSpeedModifier = crankSpeedModifier
 	state.progressIndicator = progressIndicator
 	state.playScrollSound = playScrollSound
+	state.showDefaultBooks = showDefaultBooks
 	playdate.datastore.write(state)
 	print("State saved!")
 	-- print("State saved: " .. json.encode(state))
@@ -315,6 +341,7 @@ local loadState = function ()
 	crankSpeedModifier = getOrDefault(state, "crankSpeedModifier", "number", crankSpeedModifier)
 	setProgressIndicator(getOrDefault(state, "progressIndicator", "number", progressIndicator))
 	playScrollSound = getOrDefault(state, "playScrollSound", "boolean", playScrollSound)
+	showDefaultBooks = getOrDefault(state, "showDefaultBooks", "boolean", showDefaultBooks)
 end
 
 local loadCurrentBookSettings = function ()
@@ -341,6 +368,10 @@ end
 local init = function ()
 	-- 50 Hz is max refresh rate
 	playdate.display.setRefreshRate(50)
+
+	-- Ensure that the "book" directory exists while ensuring that later SDK changes
+	-- won't cause this call to overwrite the books directory
+	playdate.file.mkdir("books/.ignore-this")
 
 	-- Load the state
 	loadState()
@@ -384,7 +415,7 @@ function loadBook(selectedBook)
 	loadCurrentBookSettings()
 
 	-- Read the book from the filesystem
-	local file = playdate.file.open(selectedBook.path)
+	local file = playdate.file.open("books/" .. selectedBook.path)
 	local sourceText = file:read(MAX_FILE_SIZE)
 	assert(sourceText)
 	text = preprocessText(sourceText)
@@ -460,9 +491,20 @@ end
 -- Scan the filesystem for books
 function scanForBooks()
 	local files = playdate.file.listFiles()
+	-- Append the default books to the files list
+	local defaultBooks = playdate.file.listFiles("books")
+	for i = 1, #defaultBooks do
+		if defaultBooks[i] == MANUAL_NAME then
+			-- Always include the manual, otherwise the user is soft-locked
+			insert(files, defaultBooks[i])
+		elseif showDefaultBooks then
+			insert(files, defaultBooks[i])
+		end
+	end
 	availableBooks = {}
 	-- Filter files to only include those that end with .txt
 	for i = #files, 1, -1 do
+		print(files[i])
 		if sub(files[i], #files[i] - 3) == ".txt" then
 			-- It's a book
 			local path = files[i]
@@ -476,7 +518,7 @@ function scanForBooks()
 	end
 	-- Sort alphabetically to ensure deterministic order
 	table.sort(availableBooks, function (a, b)
-		return a.name < b.name
+		return a.name > b.name
 	end)
 end
 
@@ -649,7 +691,7 @@ end
 
 local drawMenu = function ()
 	graphics.clear()
-	local menuWidth = 270
+	local menuWidth = 280
 	local optionRowHeight = 32
 	local topMargin = DEVICE_HEIGHT / 2 - (#optionViews - 1) * optionRowHeight / 2 - 11
 	for i = 1, #optionViews do
