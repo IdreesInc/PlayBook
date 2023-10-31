@@ -1,6 +1,6 @@
 How to use PlayBook
 
-Welcome to your PlayBook! This is an open-source ebook reader that enables you to read plaintext books on your Playdate. It's still in development, so you might encounter a few bugs, but otherwise it is very smooth and comes with a variety of features that allow you to customize your reading experience.
+Welcome to PlayBook! This is an ebook reader specially designed for the Playdate, with some carefully thought out features to make reading on your Playdate a delight. This guide will walk you through how to use your new handheld library. Hope you enjoy!
 
 Adding Books
 
