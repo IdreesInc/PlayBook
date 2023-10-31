@@ -826,11 +826,7 @@ function addLines(additionalLines, append, startChar)
 		if char == "\n" then
 			-- Newline is converted to a space before being added so it counts
 			-- as a character without the draw func printing an extra newline
-			if append then
-				insertLine(currentLine .. " ", lineStart, lineStop)
-			else
-				insertLine(" " .. currentLine, lineStart, lineStop)
-			end
+			insertLine(currentLine .. " ", lineStart, lineStop)
 		elseif lineSize + charSize > MAX_WIDTH then
 			if lastSpace then
 				-- Wrap at last space, excluding the space
