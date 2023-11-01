@@ -66,6 +66,10 @@ local booksState = {}
 local progressIndicator = 2
 -- Whether to show the books included with the app
 local showDefaultBooks = true
+local DEFAULT_BOOKS <const> = {
+	"Adventures of Sherlock Holmes.txt",
+	"Northanger Abbey.txt",
+}
 
 -- Shared
 -- The current scene being displayed
@@ -490,18 +494,20 @@ end
 
 -- Scan the filesystem for books
 function scanForBooks()
-	local files = playdate.file.listFiles()
-	-- Append the default books to the files list
-	local defaultBooks = playdate.file.listFiles("books")
-	for i = 1, #defaultBooks do
-		if defaultBooks[i] == MANUAL_NAME then
-			-- Always include the manual, otherwise the user is soft-locked
-			insert(files, defaultBooks[i])
-		elseif showDefaultBooks then
-			insert(files, defaultBooks[i])
+	local files = playdate.file.listFiles("books")
+	availableBooks = {}
+	-- Filter out default books if necessary
+	-- TODO: Determine if Lua has a better way to do this (i.e. a set)
+	if not showDefaultBooks then
+		for i = #files, 1, -1 do
+			for j = 1, #DEFAULT_BOOKS do
+				if files[i] == DEFAULT_BOOKS[j] then
+					table.remove(files, i)
+					break
+				end
+			end
 		end
 	end
-	availableBooks = {}
 	-- Filter files to only include those that end with .txt
 	for i = #files, 1, -1 do
 		print(files[i])
@@ -950,7 +956,7 @@ end
 function playdate.cranked(change, acceleratedChange)
 	-- print("cranked", change, acceleratedChange)
 	if scene == LIBRARY then
-		offset = offset - change
+		offset = offset - change * 0.6
 	elseif scene == READER then
 		if menuActive then
 			local ticks = playdate.getCrankTicks(8)
