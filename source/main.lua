@@ -479,14 +479,24 @@ end
 -- Scan the filesystem for books
 function scanForBooks()
 	local files = playdate.file.listFiles()
+	-- availableBooks = {
+	-- 	{
+	-- 		path = "",
+	-- 		name = "Reader for the Playdate"
+	-- 	},
+	-- 	{
+	-- 		path = "",
+	-- 		name = "A Delightful Ebook"
+	-- 	},
+	-- }
 	availableBooks = {
 		{
 			path = "",
-			name = "Reader for the Playdate"
+			name = "A New Spin on Reading"
 		},
 		{
 			path = "",
-			name = "A Delightful Ebook"
+			name = "PlayBook E-Reader"
 		},
 	}
 	-- Filter files to only include those that end with .txt
