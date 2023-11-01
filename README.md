@@ -3,6 +3,8 @@ A powerful and flexible ebook reader for the Playdate console
 
 ![](images/banner.png)
 
+### Get it [here!](https://idreesinc.itch.io/playbook)
+
 ## How to Use
 
 Welcome to PlayBook! This is an ebook reader specially designed for the Playdate, with some carefully thought out features to make reading on your Playdate a delight. This guide will walk you through how to use your new handheld library. Hope you enjoy!
