@@ -55,7 +55,7 @@ local READER = "READER"
 
 -- Loaded from Save State
 -- Whether the screen is inverted
-local inverted = false
+local inverted = true
 -- The font key of the font to use for the reader
 local readerFontId = 1
 -- The current speed modifier for the crank
@@ -65,7 +65,7 @@ local booksState = {}
 -- Which progress indicator to use (1 = none, 2 = candle)
 local progressIndicator = 2
 -- Whether to show the books included with the app
-local showDefaultBooks = true
+local showDefaultBooks = false
 
 -- Shared
 -- The current scene being displayed
@@ -308,19 +308,7 @@ end
 -- Save the state of the game to the datastore
 local saveState = function ()
 	print("Saving state...")
-	local state = {}
-	state.inverted = inverted
-	if currentBookKey ~= nil and currentBookSettings ~= nil then
-		currentBookSettings.readIndex = indexAtTopOfScreen
-		booksState[currentBookKey] = currentBookSettings
-	end
-	state.books = booksState
-	state.font = readerFontId
-	state.crankSpeedModifier = crankSpeedModifier
-	state.progressIndicator = progressIndicator
-	state.playScrollSound = playScrollSound
-	state.showDefaultBooks = showDefaultBooks
-	playdate.datastore.write(state)
+
 	print("State saved!")
 	-- print("State saved: " .. json.encode(state))
 end
@@ -328,20 +316,20 @@ end
 -- Load the state of the game from the datastore
 local loadState = function ()
 	print("Loading state...")
-	local state = playdate.datastore.read()
-	if state == nil then
-		state = {}
-		print("No state found, using defaults")
-	else
-		print("State found!")
-	end
-	setInverted(getOrDefault(state, "inverted", "boolean", inverted))
-	booksState = getOrDefault(state, "books", "table", {})
-	readerFontId = getOrDefault(state, "font", "number", readerFontId)
-	crankSpeedModifier = getOrDefault(state, "crankSpeedModifier", "number", crankSpeedModifier)
-	setProgressIndicator(getOrDefault(state, "progressIndicator", "number", progressIndicator))
-	playScrollSound = getOrDefault(state, "playScrollSound", "boolean", playScrollSound)
-	showDefaultBooks = getOrDefault(state, "showDefaultBooks", "boolean", showDefaultBooks)
+	-- local state = playdate.datastore.read()
+	-- if state == nil then
+	-- 	state = {}
+	-- 	print("No state found, using defaults")
+	-- else
+	-- 	print("State found!")
+	-- end
+	-- setInverted(getOrDefault(state, "inverted", "boolean", inverted))
+	-- booksState = getOrDefault(state, "books", "table", {})
+	-- readerFontId = getOrDefault(state, "font", "number", readerFontId)
+	-- crankSpeedModifier = getOrDefault(state, "crankSpeedModifier", "number", crankSpeedModifier)
+	-- setProgressIndicator(getOrDefault(state, "progressIndicator", "number", progressIndicator))
+	-- playScrollSound = getOrDefault(state, "playScrollSound", "boolean", playScrollSound)
+	-- showDefaultBooks = false
 end
 
 local loadCurrentBookSettings = function ()
@@ -491,35 +479,34 @@ end
 -- Scan the filesystem for books
 function scanForBooks()
 	local files = playdate.file.listFiles()
-	-- Append the default books to the files list
-	local defaultBooks = playdate.file.listFiles("books")
-	for i = 1, #defaultBooks do
-		if defaultBooks[i] == MANUAL_NAME then
-			-- Always include the manual, otherwise the user is soft-locked
-			insert(files, defaultBooks[i])
-		elseif showDefaultBooks then
-			insert(files, defaultBooks[i])
-		end
-	end
-	availableBooks = {}
+	availableBooks = {
+		{
+			path = "",
+			name = "Reader for the Playdate"
+		},
+		{
+			path = "",
+			name = "A Delightful Ebook"
+		},
+	}
 	-- Filter files to only include those that end with .txt
-	for i = #files, 1, -1 do
-		print(files[i])
-		if sub(files[i], #files[i] - 3) == ".txt" then
-			-- It's a book
-			local path = files[i]
-			local name = sub(path, 1, #path - 4)
-			local book = {
-				path = path,
-				name = name
-			}
-			insert(availableBooks, book)
-		end
-	end
+	-- for i = #files, 1, -1 do
+	-- 	print(files[i])
+	-- 	if sub(files[i], #files[i] - 3) == ".txt" then
+	-- 		-- It's a book
+	-- 		local path = files[i]
+	-- 		local name = sub(path, 1, #path - 4)
+	-- 		local book = {
+	-- 			path = path,
+	-- 			name = name
+	-- 		}
+	-- 		insert(availableBooks, book)
+	-- 	end
+	-- end
 	-- Sort alphabetically to ensure deterministic order
-	table.sort(availableBooks, function (a, b)
-		return a.name > b.name
-	end)
+	-- table.sort(availableBooks, function (a, b)
+	-- 	return a.name > b.name
+	-- end)
 end
 
 -- Draw a candle to the side of the text to indicate progress
@@ -614,8 +601,8 @@ local drawBook = function (x, y, title, selected)
 	end
 	local marginX = 30
 	if cutOffText ~= title then
-		cutOffText = cutOffText .. "..."
-		marginX = 25
+		cutOffText = title
+		marginX = 27
 	end
 	-- Center
 	bookImage:draw(x, y)
@@ -625,10 +612,10 @@ end
 
 local drawLibrary = function ()
 	graphics.clear()
-	local bottom = DEVICE_HEIGHT - 90 + offset
+	local bottom = DEVICE_HEIGHT - 95 + offset
 	local separation = BOOK_SEPARATION
 	-- Draw title
-	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 + 0 + offset)
+	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 - 60 + offset)
 	for i = 1, #subtitle do
 		local width, height = graphics.getTextSize(subtitle[i])
 		graphics.drawText(subtitle[i], DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 30 + offset + 20 * i)
@@ -636,20 +623,12 @@ local drawLibrary = function ()
 	-- local width, height = graphics.getTextSize(subtitle)
 	-- graphics.drawText(subtitle, DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 20)
 	-- Determine which book is closest to center of screen
-	highlightedBook = nil
-	local dist = 1000
-	for i = 1, #availableBooks do
-		local distance = abs(bottom - separation * (i - 1) - 130)
-		if distance < dist then
-			dist = distance
-			highlightedBook = i
-		end
-	end
+	highlightedBook = 2
 	-- Draw books
 	fallingBookProgress = fallingBookProgress + 16
 	for i = 1, #availableBooks do
 		local x = 60
-		if i % 2 == 0 then
+		if i % 2 == 1 then
 			x = 80
 		end
 		local fallingY = fallingBookProgress - separation * (i - 1) * 4
