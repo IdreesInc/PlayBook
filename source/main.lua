@@ -103,7 +103,7 @@ local POSSIBLE_SUBTITLES <const> = {
 	{"A book is a device", "to ignite the imagination"},
 }
 -- The subtitle currently being displayed
-local subtitle = POSSIBLE_SUBTITLES[8]
+local subtitle = POSSIBLE_SUBTITLES[1]
 
 -- Reader
 -- The sound to play while scrolling
@@ -385,7 +385,9 @@ function initLibrary()
 	directionHeld = 0
 
 	fallingBookProgress = 0 - DEVICE_HEIGHT * 3
-	subtitle = POSSIBLE_SUBTITLES[math.random(#POSSIBLE_SUBTITLES)]
+	subtitle = {
+		"Reading with a Twist"
+	}
 
 	-- Stop the sound
 	sound:setVolume(0)
@@ -482,17 +484,17 @@ function scanForBooks()
 	-- availableBooks = {
 	-- 	{
 	-- 		path = "",
-	-- 		name = "Reader for the Playdate"
+	-- 		name = "Made for the Playdate"
 	-- 	},
 	-- 	{
 	-- 		path = "",
-	-- 		name = "A Delightful Ebook"
+	-- 		name = "A Delightful E-Reader"
 	-- 	},
 	-- }
 	availableBooks = {
 		{
 			path = "",
-			name = "A New Spin on Reading"
+			name = "Unwind with a Book"
 		},
 		{
 			path = "",
@@ -605,18 +607,10 @@ local drawBook = function (x, y, title, selected)
 		graphics.setImageDrawMode(graphics.kDrawModeInverted)
 	end
 	local MAX_TEXT_WIDTH = 200
-	local cutOffText = title
-	while graphics.getTextSize(cutOffText) > MAX_TEXT_WIDTH and #cutOffText > 0 do
-		cutOffText = sub(cutOffText, 1, #cutOffText - 1)
-	end
-	local marginX = 30
-	if cutOffText ~= title then
-		cutOffText = title
-		marginX = 27
-	end
+	local width = graphics.getTextSize(title)
 	-- Center
 	bookImage:draw(x, y)
-	graphics.drawText(cutOffText, x + marginX, y + 40)
+	graphics.drawText(title, x + 32 + MAX_TEXT_WIDTH / 2 - width / 2, y + 40)
 	graphics.setImageDrawMode(graphics.kDrawModeCopy)
 end
 
