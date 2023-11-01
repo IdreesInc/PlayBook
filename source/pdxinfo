@@ -4,3 +4,4 @@ description=A delightful ebook reader for the Playdate
 bundleID=com.idreesinc.playbook
 version=1.0
 buildNumber=1
+imagePath=images/launcher
