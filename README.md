@@ -1,4 +1,4 @@
 # PlayBook
-A delightful ebook reader for the Playdate console
+A performant and flexible ebook reader for the Playdate console
 
-_README is under construction_
+![](images/banner.png)
