@@ -530,7 +530,7 @@ end
 
 -- Draw a candle to the side of the text to indicate progress
 local drawCandle = function ()
-	local TOP = textProgress * (DEVICE_HEIGHT - candleTop.height - 10 - candleHolder.height) + 6
+	local TOP = textProgress * (DEVICE_HEIGHT - candleTop.height - 10 - candleHolder.height) + 4
 	local LEFT = DEVICE_WIDTH - 4 - candleSection.width
 	-- Draw the top of the candle
 	candleTop:draw(LEFT, TOP)
@@ -553,12 +553,12 @@ local drawCandle = function ()
 	for i = 1, sections do
 		candleSection:draw(LEFT, TOP + candleTop.height + (i - 1) * candleSection.height)
 	end
-	-- Draw the drips
-	local bottom = DEVICE_HEIGHT - candleDripLeft.height + 3 - candleHolder.height
-	candleDripLeft:draw(LEFT - candleDripLeft.width + 1, min(bottom, TOP + 40 + textProgress * 115))
-	candleDripRight:draw(LEFT + candleSection.width - 1, min(bottom, TOP + 80 + textProgress * 40))
 	-- Draw the holder
-	candleHolder:draw(LEFT - 3, DEVICE_HEIGHT - candleHolder.height)
+	candleHolder:draw(LEFT, DEVICE_HEIGHT - candleHolder.height)
+	-- Draw the drips
+	local bottom = DEVICE_HEIGHT - candleDripLeft.height + 4 - candleHolder.height
+	candleDripLeft:draw(LEFT, min(bottom, TOP + 40 + textProgress * 115))
+	candleDripRight:draw(LEFT + candleSection.width - candleDripRight.width, min(bottom, TOP + 90 + textProgress * 20))
 end
 
 -- Draw the reader application
