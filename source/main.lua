@@ -531,7 +531,7 @@ end
 -- Draw a candle to the side of the text to indicate progress
 local drawCandle = function ()
 	local TOP = textProgress * (DEVICE_HEIGHT - candleTop.height - 10 - candleHolder.height) + 4
-	local LEFT = DEVICE_WIDTH - 4 - candleSection.width
+	local LEFT = DEVICE_WIDTH - 1 - candleSection.width
 	-- Draw the top of the candle
 	candleTop:draw(LEFT, TOP)
 	-- Draw the flame flickering
