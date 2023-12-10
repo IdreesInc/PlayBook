@@ -69,6 +69,9 @@ local showDefaultBooks = true
 local DEFAULT_BOOKS <const> = {
 	"Adventures of Sherlock Holmes.txt",
 	"Northanger Abbey.txt",
+	"Pride and Prejudice.txt",
+	"Frankenstein.txt",
+	"The Great Gatsby.txt",
 }
 
 -- Shared
