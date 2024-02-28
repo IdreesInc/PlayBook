@@ -96,6 +96,8 @@ local availableBooks = {}
 local highlightedBook = nil
 -- The offset of the falling book animation
 local fallingBookProgress = 0
+-- The offset of the title animation
+local titleAnimationProgress = 0
 -- The PlayBook title image
 local titleImage <const> = graphics.image.new("images/title.png")
 -- A list of potential subtitles to display
@@ -403,7 +405,8 @@ function initLibrary()
 	offset = 0
 	directionHeld = 0
 
-	fallingBookProgress = 0 - DEVICE_HEIGHT * 3
+	fallingBookProgress = 0 - DEVICE_HEIGHT * 4
+	titleAnimationProgress = 0
 	subtitle = POSSIBLE_SUBTITLES[math.random(#POSSIBLE_SUBTITLES)]
 
 	-- Stop the sound
@@ -632,15 +635,22 @@ local drawBook = function (x, y, title, selected)
 	graphics.setImageDrawMode(graphics.kDrawModeCopy)
 end
 
+local easeOut = function(t)
+	return 1 - (1 - t) * (1 - t)
+end
+
 local drawLibrary = function ()
 	graphics.clear()
 	local bottom = DEVICE_HEIGHT - 90 + offset
 	local separation = BOOK_SEPARATION
 	-- Draw title
-	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 + 0 + offset)
+	titleAnimationProgress = min(1, titleAnimationProgress + 0.03)
+	local titleOffset = -200 + easeOut(titleAnimationProgress) * 200
+	local subtitleOffset = 250 - easeOut(titleAnimationProgress) * 250
+	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 + 0 + offset + titleOffset)
 	for i = 1, #subtitle do
 		local width, height = graphics.getTextSize(subtitle[i])
-		graphics.drawText(subtitle[i], DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 30 + offset + 20 * i)
+		graphics.drawText(subtitle[i], DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 30 + offset + 20 * i + subtitleOffset)
 	end
 	-- local width, height = graphics.getTextSize(subtitle)
 	-- graphics.drawText(subtitle, DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 20)
