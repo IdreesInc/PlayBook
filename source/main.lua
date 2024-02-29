@@ -94,6 +94,8 @@ local bookImage <const> = graphics.image.new("images/book.png")
 local availableBooks = {}
 -- The book index currently highlighted by the user
 local highlightedBook = nil
+-- The offset of the library scroll while switching selected books
+local hightlightedBookScrollOffset = 0
 -- The offset of the falling book animation
 local fallingBookProgress = 0
 -- The offset of the title animation
@@ -407,6 +409,7 @@ function initLibrary()
 
 	fallingBookProgress = 0 - DEVICE_HEIGHT * 4
 	titleAnimationProgress = 0
+	hightlightedBookScrollOffset = 0
 	subtitle = POSSIBLE_SUBTITLES[math.random(#POSSIBLE_SUBTITLES)]
 
 	-- Stop the sound
@@ -640,28 +643,20 @@ local easeOut = function(t)
 end
 
 local drawLibrary = function ()
+	local libraryOffset = highlightedBook * BOOK_SEPARATION - 40 + hightlightedBookScrollOffset
 	graphics.clear()
-	local bottom = DEVICE_HEIGHT - 90 + offset
+	local bottom = DEVICE_HEIGHT - 90 + libraryOffset
 	local separation = BOOK_SEPARATION
 	-- Draw title
 	titleAnimationProgress = min(1, titleAnimationProgress + 0.03)
 	local titleOffset = -200 + easeOut(titleAnimationProgress) * 200
 	local subtitleOffset = 250 - easeOut(titleAnimationProgress) * 250
-	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 + 0 + offset + titleOffset)
-	for i = 1, #subtitle do
-		local width, height = graphics.getTextSize(subtitle[i])
-		graphics.drawText(subtitle[i], DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 30 + offset + 20 * i + subtitleOffset)
-	end
-	-- local width, height = graphics.getTextSize(subtitle)
-	-- graphics.drawText(subtitle, DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 20)
-	-- Determine which book is closest to center of screen
-	highlightedBook = nil
-	local dist = 1000
-	for i = 1, #availableBooks do
-		local distance = abs(bottom - separation * (i - 1) - 130)
-		if distance < dist then
-			dist = distance
-			highlightedBook = i
+	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 + 0 + 0 + titleOffset)
+	if highlightedBook == nil or highlightedBook < 2 then
+		-- Only draw subtitle if the first book is selected to prevent it peeking over the top of the stack
+		for i = 1, #subtitle do
+			local width, height = graphics.getTextSize(subtitle[i])
+			graphics.drawText(subtitle[i], DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 30 + 0 + 20 * i + subtitleOffset)
 		end
 	end
 	-- Draw books
@@ -738,8 +733,24 @@ end
 -- Update loop
 function playdate.update()
 	if scene == LIBRARY then
+		local scrollSectionSize = 30
+		local maxLibraryOffset = #availableBooks * scrollSectionSize
 		offset = max(0, offset)
-		offset = min(offset, (#availableBooks - 1) * BOOK_SEPARATION - BOOK_SEPARATION / 2)
+		offset = min(offset, maxLibraryOffset)
+		local bookIndex = min(#availableBooks, floor(offset / scrollSectionSize) + 1)
+		if highlightedBook ~= nil then
+			if bookIndex < highlightedBook then
+				hightlightedBookScrollOffset = 30
+			elseif bookIndex > highlightedBook then
+				hightlightedBookScrollOffset = -30
+			end
+		end
+		highlightedBook = bookIndex
+		if hightlightedBookScrollOffset > 0 then
+			hightlightedBookScrollOffset = max(0, hightlightedBookScrollOffset - 5)
+		elseif hightlightedBookScrollOffset < 0 then
+			hightlightedBookScrollOffset = min(0, hightlightedBookScrollOffset + 5)
+		end
 		drawLibrary()
 	elseif scene == READER then
 		drawText()
