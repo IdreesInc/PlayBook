@@ -31,6 +31,7 @@ local BTN_SCROLL_SPEED <const> = 6
 local MARGIN_WITH_BORDER <const> = 22
 local MARGIN_WITHOUT_BORDER <const> = 6
 local BOOK_SEPARATION <const> = 42
+local BOOK_OFFSET_SIZE <const> = 30
 -- The font options available
 local FONTS <const> = {
 	{
@@ -733,11 +734,10 @@ end
 -- Update loop
 function playdate.update()
 	if scene == LIBRARY then
-		local scrollSectionSize = 30
-		local maxLibraryOffset = #availableBooks * scrollSectionSize
+		local maxLibraryOffset = (#availableBooks - 0.45) * BOOK_OFFSET_SIZE
 		offset = max(0, offset)
 		offset = min(offset, maxLibraryOffset)
-		local bookIndex = min(#availableBooks, floor(offset / scrollSectionSize) + 1)
+		local bookIndex = min(#availableBooks, floor(offset / BOOK_OFFSET_SIZE) + 1)
 		if highlightedBook ~= nil then
 			if bookIndex < highlightedBook then
 				hightlightedBookScrollOffset = 30
@@ -1004,11 +1004,7 @@ end
 function playdate.upButtonDown()
 	-- print("up")
 	if scene == LIBRARY then
-		if highlightedBook == 1 then
-			offset = offset + BOOK_SEPARATION / 2
-		else
-			offset = offset + BOOK_SEPARATION
-		end
+		offset = offset + BOOK_OFFSET_SIZE
 	else
 		if not menuActive then
 			directionHeld = 1
@@ -1023,7 +1019,7 @@ end
 function playdate.downButtonDown()
 	-- print("down")
 	if scene == LIBRARY then
-		offset = offset - BOOK_SEPARATION
+		offset = offset - BOOK_OFFSET_SIZE
 	else
 		if not menuActive then
 			directionHeld = -1
