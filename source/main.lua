@@ -90,6 +90,9 @@ local playScrollSound = true
 -- Library
 -- Book selection background
 local bookImage <const> = graphics.image.new("images/book.png")
+-- Bookmark tab image
+local bookmarkImage <const> = graphics.image.new("images/bookmark.png")
+local bookmarkBorderImage <const> = graphics.image.new("images/bookmark-border.png")
 -- List of books available in the filesystem
 -- Format: { path = "path/to/file.txt", name = "file" }
 local availableBooks = {}
@@ -324,6 +327,7 @@ local saveState = function ()
 	state.inverted = inverted
 	if currentBookKey ~= nil and currentBookSettings ~= nil then
 		currentBookSettings.readIndex = indexAtTopOfScreen
+		currentBookSettings.progress = textProgress
 		booksState[currentBookKey] = currentBookSettings
 	end
 	state.books = booksState
@@ -363,6 +367,7 @@ local loadCurrentBookSettings = function ()
 		currentBookSettings = {}
 	end
 	currentBookSettings.readIndex = getOrDefault(currentBookSettings, "readIndex", "number", 1)
+	currentBookSettings.progress = getOrDefault(currentBookSettings, "progress", "number", 0)
 end
 
 function playdate.gameWillTerminate()
@@ -618,7 +623,7 @@ local drawText = function ()
 end
 
 -- Draw an individual book
-local drawBook = function (x, y, title, selected)
+local drawBook = function (x, y, title, progress, selected)
 	graphics.setFont(FONTS[1].font)
 	if selected then
 		graphics.setImageDrawMode(graphics.kDrawModeInverted)
@@ -636,6 +641,17 @@ local drawBook = function (x, y, title, selected)
 	-- Center
 	bookImage:draw(x, y)
 	graphics.drawText(cutOffText, x + marginX, y + 40)
+	local bookmarkHeight = 0
+	if progress ~= nil then
+		bookmarkHeight = math.floor(progress * 10 + 0.5) * 3
+	end
+	local bookmarkX = x + 250
+	local bookmarkY = y + 30
+	if selected then
+		bookmarkBorderImage:draw(bookmarkX, bookmarkY + bookmarkHeight)
+	else
+		bookmarkImage:draw(bookmarkX, bookmarkY + bookmarkHeight)
+	end
 	graphics.setImageDrawMode(graphics.kDrawModeCopy)
 end
 
@@ -670,7 +686,7 @@ local drawLibrary = function ()
 		local fallingY = fallingBookProgress - separation * (i - 1) * 4
 		local endY = bottom - separation * (i - 1)
 		local y = min(endY, fallingY)
-		drawBook(x, y, availableBooks[i].name, i == highlightedBook)
+		drawBook(x, y, availableBooks[i].name, booksState[availableBooks[i].name].progress, highlightedBook == i)
 	end
 end
 
