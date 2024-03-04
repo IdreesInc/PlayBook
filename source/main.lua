@@ -640,7 +640,7 @@ local drawBook = function (x, y, title, progress, selected)
 	end
 	bookImage:draw(x, y)
 	graphics.drawText(cutOffText, x + marginX, y + 40)
-	if progress > 0 then
+	if progress > 0.001 then
 		-- Draw bookmark
 		local bookmarkHeight = math.floor(progress * 10 + 0.5) * 3
 		local bookmarkX = x + 250
