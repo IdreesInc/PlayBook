@@ -31,7 +31,7 @@ local BTN_SCROLL_SPEED <const> = 6
 local MARGIN_WITH_BORDER <const> = 22
 local MARGIN_WITHOUT_BORDER <const> = 6
 local BOOK_SEPARATION <const> = 42
-local BOOK_OFFSET_SIZE <const> = 30
+local BOOK_OFFSET_SIZE <const> = 25
 -- The font options available
 local FONTS <const> = {
 	{
@@ -638,19 +638,18 @@ local drawBook = function (x, y, title, progress, selected)
 		cutOffText = cutOffText .. "..."
 		marginX = 25
 	end
-	-- Center
 	bookImage:draw(x, y)
 	graphics.drawText(cutOffText, x + marginX, y + 40)
-	local bookmarkHeight = 0
-	if progress ~= nil then
-		bookmarkHeight = math.floor(progress * 10 + 0.5) * 3
-	end
-	local bookmarkX = x + 250
-	local bookmarkY = y + 30
-	if selected then
-		bookmarkBorderImage:draw(bookmarkX, bookmarkY + bookmarkHeight)
-	else
-		bookmarkImage:draw(bookmarkX, bookmarkY + bookmarkHeight)
+	if progress > 0 then
+		-- Draw bookmark
+		local bookmarkHeight = math.floor(progress * 10 + 0.5) * 3
+		local bookmarkX = x + 250
+		local bookmarkY = y + 30
+		if selected then
+			bookmarkBorderImage:draw(bookmarkX, bookmarkY + bookmarkHeight)
+		else
+			bookmarkImage:draw(bookmarkX, bookmarkY + bookmarkHeight)
+		end
 	end
 	graphics.setImageDrawMode(graphics.kDrawModeCopy)
 end
@@ -686,7 +685,11 @@ local drawLibrary = function ()
 		local fallingY = fallingBookProgress - separation * (i - 1) * 4
 		local endY = bottom - separation * (i - 1)
 		local y = min(endY, fallingY)
-		drawBook(x, y, availableBooks[i].name, booksState[availableBooks[i].name].progress, highlightedBook == i)
+		local progress = 0
+		if booksState[availableBooks[i].name] ~= nil and booksState[availableBooks[i].name].progress ~= nil then
+			progress = booksState[availableBooks[i].name].progress
+		end
+		drawBook(x, y, availableBooks[i].name, progress, highlightedBook == i)
 	end
 end
 
