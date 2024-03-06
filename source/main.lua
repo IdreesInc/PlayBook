@@ -225,24 +225,17 @@ local MENU_OPTIONS <const> = {
 		end
 	},
 	{
-		label = "Display Candle",
+		label = "Progress Bar",
 		options =  {
-			"Enabled",
-			"Disabled"
+			"None",
+			"Candle",
+			"Scrollbar"
 		},
 		initialValue = function ()
-			if progressIndicator == 2 then
-				return 1
-			else
-				return 2
-			end
+			return progressIndicator
 		end,
 		callback = function (index)
-			if index == 1 then
-				setProgressIndicator(2)
-			elseif index == 2 then
-				setProgressIndicator(1)
-			end
+			setProgressIndicator(index)
 		end
 	},
 	{
@@ -305,6 +298,11 @@ local candleDripRight = graphics.image.new("images/candle-drip-right.png")
 local candleHolder = graphics.image.new("images/candle-holder.png")
 -- The flame frame currently being displayed
 local flame = candleFlameOne
+-- Scrollbar parts
+local scrollbarArrow = graphics.image.new("images/scrollbar-arrow.png")
+local scrollbarButton = graphics.image.new("images/scrollbar-button.png")
+local scrollbarSection = graphics.image.new("images/scrollbar-section.png")
+local scrollbarSlider = graphics.image.new("images/scrollbar-slider.png")
 
 -- Get a value from a table if it exists or return a default value
 local getOrDefault = function (table, key, expectedType, default)
@@ -572,6 +570,30 @@ local drawCandle = function ()
 	candleDripRight:draw(LEFT + candleSection.width - candleDripRight.width, min(bottom, TOP + 90 + textProgress * 20))
 end
 
+local drawScrollbar = function ()
+	local VERT_MARGIN = 2
+	local LEFT = DEVICE_WIDTH - 2 - scrollbarSection.width
+	-- Draw the top arrow
+	scrollbarButton:draw(LEFT, VERT_MARGIN)
+	scrollbarArrow:draw(LEFT + 2, VERT_MARGIN + 2)
+	-- Draw the scrollbar length
+	for i = 1, 17 do
+		scrollbarSection:draw(LEFT, VERT_MARGIN + scrollbarButton.height + (i - 1) * scrollbarSection.height)
+	end
+	-- Draw the bottom arrow
+	scrollbarButton:draw(LEFT, DEVICE_HEIGHT - VERT_MARGIN - scrollbarButton.height)
+	scrollbarArrow:draw(LEFT + 2, DEVICE_HEIGHT - VERT_MARGIN - scrollbarButton.height + 3, graphics.kImageFlippedY)
+	-- Draw the slider
+	local progress = textProgress
+	if progress <= 0.01 then
+		progress = 0
+	elseif progress >= 0.99 then
+		progress = 1
+	end
+	local sliderY = VERT_MARGIN + scrollbarButton.height + floor(progress * (DEVICE_HEIGHT - VERT_MARGIN * 2 - scrollbarButton.height * 2 - scrollbarSlider.height))
+	scrollbarSlider:draw(LEFT + 1, sliderY)
+end
+
 -- Draw the reader application
 local drawText = function ()
 	graphics.clear()
@@ -615,6 +637,8 @@ local drawText = function ()
 	end
 	if progressIndicator == 2 then
 		drawCandle()
+	elseif progressIndicator == 3 then
+		drawScrollbar()
 	end
 end
 
@@ -983,10 +1007,10 @@ end
 
 function setProgressIndicator(indicator)
 	progressIndicator = indicator
-	if progressIndicator == 2 then
-		rightMargin = MARGIN_WITH_BORDER
-	else
+	if progressIndicator == 1 then
 		rightMargin = MARGIN_WITHOUT_BORDER
+	else
+		rightMargin = MARGIN_WITH_BORDER
 	end
 	reloadReader()
 end
