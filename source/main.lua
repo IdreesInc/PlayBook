@@ -468,14 +468,10 @@ function reloadReader()
 	-- Calculate the line height
 	lineHeight = graphics.getTextSize("A") * 1.6
 
-	if currentBookSettings == nil then
-		-- Should not happen
-		print("Error: currentBookSettings is nil")
-		return
+	if currentBookSettings ~= nil then
+		-- Split the text into lines
+		initializeLines(currentBookSettings.readIndex)
 	end
-
-	-- Split the text into lines
-	initializeLines(currentBookSettings.readIndex)
 end
 
 -- Initialize the options menu, only needs to be called once as it is not a separate scene
