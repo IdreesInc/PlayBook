@@ -46,6 +46,18 @@ local FONTS <const> = {
 		name = "Monocraft",
 		font = graphics.font.new("fonts/monocraft-18")
 	},
+	{
+		name = "fusion-pixel",
+		font = graphics.font.new("fonts/fusion-pixel-font-24px-proportional-zh_hans")
+	},
+	{
+		name = "LXGW-Screen",
+		font = graphics.font.new("fonts/LXGWWenKaiGBScreen-24px-anti-aliasing")
+	},
+	{
+		name = "SourceHanSansCN",
+		font = graphics.font.new("fonts/SourceHanSansCN-M-24px")
+	},
 }
 local MANUAL_NAME <const> = "The PlayBook Manual.txt"
 -- Scene names
@@ -125,6 +137,7 @@ local subtitle = POSSIBLE_SUBTITLES[8]
 local sound <const> = playdate.sound.synth.new(playdate.sound.kWaveNoise)
 -- The height of a line of text in the current font
 local lineHeight = 0
+local lineHeightFactor = 1.6
 -- The direction the user is scrolling via the D-pad
 local directionHeld = 0
 -- The margin on the left of the screen
@@ -192,6 +205,40 @@ local MENU_OPTIONS <const> = {
 		callback = function (index)
 			readerFontId = index
 			print("Setting font to " .. FONTS[readerFontId].name)
+			reloadReader()
+		end
+	},
+	{
+		label = "Line Height",
+		options =  {
+			"1.6",
+			"2",
+			"2.5",
+			"2.75"
+		},
+		initialValue = function ()
+			if lineHeightFactor == 1.6 then
+				return 1
+			elseif lineHeightFactor == 2 then
+				return 2
+			elseif lineHeightFactor == 2.5 then
+				return 3
+			elseif lineHeightFactor == 2.75 then
+				return 4
+			else
+				return 1
+			end
+		end,
+		callback = function (index)
+			if index == 1 then
+				lineHeightFactor = 1.6
+			elseif index == 2 then
+				lineHeightFactor = 2
+			elseif index == 3 then
+				lineHeightFactor = 2.5
+			elseif index == 4 then
+				lineHeightFactor = 2.75
+			end
 			reloadReader()
 		end
 	},
@@ -330,6 +377,7 @@ local saveState = function ()
 	end
 	state.books = booksState
 	state.font = readerFontId
+	state.lineHeightFactor = lineHeightFactor
 	state.crankSpeedModifier = crankSpeedModifier
 	state.progressIndicator = progressIndicator
 	state.playScrollSound = playScrollSound
@@ -352,6 +400,7 @@ local loadState = function ()
 	setInverted(getOrDefault(state, "inverted", "boolean", inverted))
 	booksState = getOrDefault(state, "books", "table", {})
 	readerFontId = getOrDefault(state, "font", "number", readerFontId)
+	lineHeightFactor = getOrDefault(state, "lineHeightFactor", "number", lineHeightFactor)
 	crankSpeedModifier = getOrDefault(state, "crankSpeedModifier", "number", crankSpeedModifier)
 	setProgressIndicator(getOrDefault(state, "progressIndicator", "number", progressIndicator))
 	playScrollSound = getOrDefault(state, "playScrollSound", "boolean", playScrollSound)
@@ -464,7 +513,7 @@ function reloadReader()
 	graphics.setFont(FONTS[readerFontId].font)
 
 	-- Calculate the line height
-	lineHeight = graphics.getTextSize("A") * 1.6
+	lineHeight = graphics.getTextSize("A") * lineHeightFactor
 
 	if currentBookSettings ~= nil then
 		-- Split the text into lines
