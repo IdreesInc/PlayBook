@@ -3,7 +3,7 @@ A powerful and flexible ebook reader for the Playdate console
 
 ![](images/banner.png)
 
-### Get it [here!]([https://idreesinc.itch.io/playbook](https://play.date/games/playbook/))
+### [Get it here in the Catalog!](https://play.date/games/playbook/)
 
 ## How to Use
 
