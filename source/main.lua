@@ -32,7 +32,7 @@ local MARGIN_WITH_BORDER <const> = 22
 local MARGIN_WITHOUT_BORDER <const> = 6
 local BOOK_SEPARATION <const> = 42
 local BOOK_OFFSET_SIZE <const> = 25
-local FOLDER_SPACING <const> = 325
+local FOLDER_SPACING <const> = 385
 -- The font options available
 local FONTS <const> = {
 	{
@@ -312,6 +312,8 @@ local scrollbarArrow = graphics.image.new("images/scrollbar-arrow.png")
 local scrollbarButton = graphics.image.new("images/scrollbar-button.png")
 local scrollbarSection = graphics.image.new("images/scrollbar-section.png")
 local scrollbarSlider = graphics.image.new("images/scrollbar-slider.png")
+-- Folder arrow
+local folderArrow = graphics.image.new("images/arrow.png")
 
 -- Get a value from a table if it exists or return a default value
 local getOrDefault = function (table, key, expectedType, default)
@@ -733,12 +735,12 @@ end
 local drawLibrary = function ()
 	local libraryOffset = highlightedBookInFolder * BOOK_SEPARATION - 40 + highlightedBookScrollOffset
 	graphics.clear()
-	local bottom = DEVICE_HEIGHT - 90 + libraryOffset
+	local bottom = DEVICE_HEIGHT - 103 + libraryOffset
 	local separation = BOOK_SEPARATION
 	-- Draw title
 	titleAnimationProgress = min(1, titleAnimationProgress + 0.03)
-	local titleOffset = -200 + easeOut(titleAnimationProgress) * 200
-	local subtitleOffset = 250 - easeOut(titleAnimationProgress) * 250
+	local titleOffset = -210 + easeOut(titleAnimationProgress) * 200
+	local subtitleOffset = 240 - easeOut(titleAnimationProgress) * 250
 	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 + 0 + 0 + titleOffset)
 	if highlightedBook == nil or highlightedBook < 2 then
 		-- Only draw subtitle if the first book is selected to prevent it peeking over the top of the stack
@@ -765,20 +767,45 @@ local drawLibrary = function ()
 		local index = bookWithinFolderIndices[folder]
 		local x = 60
 		if index % 2 == 0 then
-			x = 70
+			x = 80
 		end
 		x = x + FOLDER_SPACING * (folderIndices[folder] - folderIndex + 1) + folderIndexScrollOffset
 		local fallingY = fallingBookProgress - separation * (index - 1) * 4
 		local endY = bottom - separation * (index - 1)
 		local y = min(endY, fallingY)
-		if folderIndex == folderIndices[folder] and folderIndexScrollOffset == 0 then
-			y = y - 10
-		end
+		-- if folderIndex == folderIndices[folder] and folderIndexScrollOffset == 0 then
+		-- 	y = y - 10
+		-- end
 		local progress = 0
 		if booksState[availableBooks[i].name] ~= nil and booksState[availableBooks[i].name].progress ~= nil then
 			progress = booksState[availableBooks[i].name].progress
 		end
 		drawBook(x, y, availableBooks[i].name, progress, highlightedBook == i)
+	end
+	-- Draw stack name
+	if folderCount > 1 then
+		local folder = availableBooks[highlightedBook].folder
+		if folder == "root" then
+			folder = "library"
+		end
+		-- Capitalize first letter of each word
+		folder = folder:gsub("(%a)([%w_']*)", function(first, rest)
+			return first:upper() .. rest:lower()
+		end)
+		local width, height = graphics.getTextSize(folder)
+		local folderX = DEVICE_WIDTH / 2 - width / 2
+		local folderY = DEVICE_HEIGHT - 31 + libraryOffset - min(0, fallingBookProgress / 2 - bottom)
+		graphics.fillRoundRect(folderX - 10, folderY + 2, width + 20, height - 2, 8)
+		graphics.setImageDrawMode(graphics.kDrawModeInverted)
+		graphics.drawText(folder, folderX, folderY)
+		graphics.setImageDrawMode(graphics.kDrawModeCopy)
+		local arrowSpacing = 25
+		if folderIndex > 1 then
+			folderArrow:draw(folderX - folderArrow.width - arrowSpacing, folderY + height / 2 - folderArrow.height / 2 + 1, graphics.kImageFlippedX)
+		end
+		if folderIndex < folderCount then
+			folderArrow:draw(folderX + width + arrowSpacing, folderY + height / 2 - folderArrow.height / 2 + 1)
+		end
 	end
 end
 
