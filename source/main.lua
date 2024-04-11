@@ -32,6 +32,7 @@ local MARGIN_WITH_BORDER <const> = 22
 local MARGIN_WITHOUT_BORDER <const> = 6
 local BOOK_SEPARATION <const> = 42
 local BOOK_OFFSET_SIZE <const> = 25
+local FOLDER_SPACING <const> = 385
 -- The font options available
 local FONTS <const> = {
 	{
@@ -96,10 +97,18 @@ local bookmarkBorderImage <const> = graphics.image.new("images/bookmark-border.p
 -- List of books available in the filesystem
 -- Format: { path = "path/to/file.txt", name = "file" }
 local availableBooks = {}
+-- The number of books in each folder
+local booksPerFolder = {}
 -- The book index currently highlighted by the user
 local highlightedBook = nil
+-- The index of the currently selected book in the current folder
+local highlightedBookInFolder = 1
+-- The index of the currently selected folder
+local folderIndex = 1
 -- The offset of the library scroll while switching selected books
-local hightlightedBookScrollOffset = 0
+local highlightedBookScrollOffset = 0
+-- The offset of the library scroll while switching selected folders
+local folderIndexScrollOffset = 0
 -- The offset of the falling book animation
 local fallingBookProgress = 0
 -- The offset of the title animation
@@ -303,6 +312,8 @@ local scrollbarArrow = graphics.image.new("images/scrollbar-arrow.png")
 local scrollbarButton = graphics.image.new("images/scrollbar-button.png")
 local scrollbarSection = graphics.image.new("images/scrollbar-section.png")
 local scrollbarSlider = graphics.image.new("images/scrollbar-slider.png")
+-- Folder arrow
+local folderArrow = graphics.image.new("images/arrow.png")
 
 -- Get a value from a table if it exists or return a default value
 local getOrDefault = function (table, key, expectedType, default)
@@ -411,15 +422,25 @@ function initLibrary()
 	offset = 0
 	directionHeld = 0
 
-	fallingBookProgress = 0 - DEVICE_HEIGHT * 4
+	fallingBookProgress = 0 - DEVICE_HEIGHT * 4.75
 	titleAnimationProgress = 0
-	hightlightedBookScrollOffset = 0
+	highlightedBookScrollOffset = 0
 	subtitle = POSSIBLE_SUBTITLES[math.random(#POSSIBLE_SUBTITLES)]
 
 	-- Stop the sound
 	sound:setVolume(0)
 
-	scanForBooks()
+	availableBooks = scanForBooks()
+	booksPerFolder = {}
+	local currentFolder = nil
+	for i = 1, #availableBooks do
+		if availableBooks[i].folder ~= currentFolder then
+			currentFolder = availableBooks[i].folder
+			insert(booksPerFolder, 1)
+		else
+			booksPerFolder[#booksPerFolder] = booksPerFolder[#booksPerFolder] + 1
+		end
+	end
 end
 
 -- Load the given book into memory
@@ -503,8 +524,31 @@ end
 
 -- Scan the filesystem for books
 function scanForBooks()
+	-- Determine which folders are available
+	local folders = {}
+	-- Add the root folder
+	insert(folders, "")
+	-- Scan for folders
 	local files = playdate.file.listFiles("books")
-	availableBooks = {}
+	for i = 1, #files do
+		if playdate.file.isdir("books/" .. files[i]) then
+			insert(folders, files[i])
+		end
+	end
+	-- Add books from each folder
+	local foundBooks = {}
+	for i = 1, #folders do
+		local folderBooks = addBooksFromFolder(folders[i])
+		for j = 1, #folderBooks do
+			insert(foundBooks, folderBooks[j])
+		end
+	end
+	return foundBooks
+end
+
+function addBooksFromFolder(folderPath)
+	local files = playdate.file.listFiles("books/" .. folderPath)
+	local books = {}
 	-- Filter out default books if necessary
 	-- TODO: Determine if Lua has a better way to do this (i.e. a set)
 	if not showDefaultBooks then
@@ -519,22 +563,32 @@ function scanForBooks()
 	end
 	-- Filter files to only include those that end with .txt
 	for i = #files, 1, -1 do
-		print(files[i])
 		if sub(files[i], #files[i] - 3) == ".txt" then
 			-- It's a book
-			local path = files[i]
-			local name = sub(path, 1, #path - 4)
+			local path = folderPath .. files[i]
+			print("Found book: '" .. path .. "'")
+			local name = sub(files[i], 1, #files[i] - 4)
+			local folderKey = folderPath
+			if folderKey == "" then
+				folderKey = "root"
+			end
+			-- Remove trailing slash
+			if sub(folderKey, #folderKey) == "/" then
+				folderKey = sub(folderKey, 1, #folderKey - 1)
+			end
 			local book = {
 				path = path,
-				name = name
+				name = name,
+				folder = folderKey,
 			}
-			insert(availableBooks, book)
+			insert(books, book)
 		end
 	end
 	-- Sort alphabetically to ensure deterministic order
-	table.sort(availableBooks, function (a, b)
+	table.sort(books, function (a, b)
 		return a.name > b.name
 	end)
+	return books
 end
 
 -- Draw a candle to the side of the text to indicate progress
@@ -679,14 +733,14 @@ local easeOut = function(t)
 end
 
 local drawLibrary = function ()
-	local libraryOffset = highlightedBook * BOOK_SEPARATION - 40 + hightlightedBookScrollOffset
+	local libraryOffset = highlightedBookInFolder * BOOK_SEPARATION - 40 + highlightedBookScrollOffset
 	graphics.clear()
-	local bottom = DEVICE_HEIGHT - 90 + libraryOffset
+	local bottom = DEVICE_HEIGHT - 103 + libraryOffset
 	local separation = BOOK_SEPARATION
 	-- Draw title
 	titleAnimationProgress = min(1, titleAnimationProgress + 0.03)
-	local titleOffset = -200 + easeOut(titleAnimationProgress) * 200
-	local subtitleOffset = 250 - easeOut(titleAnimationProgress) * 250
+	local titleOffset = -210 + easeOut(titleAnimationProgress) * 200
+	local subtitleOffset = 240 - easeOut(titleAnimationProgress) * 250
 	titleImage:draw(DEVICE_WIDTH / 2 - titleImage.width / 2, DEVICE_HEIGHT / 2 - titleImage.height / 2 + 0 + 0 + titleOffset)
 	if highlightedBook == nil or highlightedBook < 2 then
 		-- Only draw subtitle if the first book is selected to prevent it peeking over the top of the stack
@@ -695,21 +749,63 @@ local drawLibrary = function ()
 			graphics.drawText(subtitle[i], DEVICE_WIDTH / 2 - width / 2, DEVICE_HEIGHT / 2 - height / 2 + 30 + 0 + 20 * i + subtitleOffset)
 		end
 	end
+	-- The indices of each folder
+	local folderIndices = {}
+	-- The indices of the books within each folder
+	local bookWithinFolderIndices = {}
+	local folderCount = 0
 	-- Draw books
-	fallingBookProgress = fallingBookProgress + 16
+	fallingBookProgress = fallingBookProgress + 20
 	for i = 1, #availableBooks do
+		local folder = availableBooks[i].folder
+		if folderIndices[folder] == nil then
+			folderIndices[folder] = folderCount
+			bookWithinFolderIndices[folder] = 0
+			folderCount = folderCount + 1
+		end
+		bookWithinFolderIndices[folder] = bookWithinFolderIndices[folder] + 1
+		local index = bookWithinFolderIndices[folder]
 		local x = 60
-		if i % 2 == 0 then
+		if index % 2 == 0 then
 			x = 80
 		end
-		local fallingY = fallingBookProgress - separation * (i - 1) * 4
-		local endY = bottom - separation * (i - 1)
+		x = x + FOLDER_SPACING * (folderIndices[folder] - folderIndex + 1) + folderIndexScrollOffset
+		local fallingY = fallingBookProgress - separation * (index - 1) * 4
+		local endY = bottom - separation * (index - 1)
 		local y = min(endY, fallingY)
+		-- if folderIndex == folderIndices[folder] and folderIndexScrollOffset == 0 then
+		-- 	y = y - 10
+		-- end
 		local progress = 0
 		if booksState[availableBooks[i].name] ~= nil and booksState[availableBooks[i].name].progress ~= nil then
 			progress = booksState[availableBooks[i].name].progress
 		end
 		drawBook(x, y, availableBooks[i].name, progress, highlightedBook == i)
+	end
+	-- Draw folder label
+	if folderCount > 1 then
+		local folder = availableBooks[highlightedBook].folder
+		if folder == "root" then
+			folder = "library"
+		end
+		-- Capitalize first letter of each word
+		folder = folder:gsub("(%a)([%w_']*)", function(first, rest)
+			return first:upper() .. rest:lower()
+		end)
+		local width, height = graphics.getTextSize(folder)
+		local labelX = DEVICE_WIDTH / 2 - width / 2
+		local labelY = DEVICE_HEIGHT - 31 + libraryOffset - min(0, fallingBookProgress / 2 - bottom)
+		graphics.fillRoundRect(labelX - 10, labelY + 2, width + 20, height - 2, 8)
+		graphics.setImageDrawMode(graphics.kDrawModeInverted)
+		graphics.drawText(folder, labelX, labelY)
+		graphics.setImageDrawMode(graphics.kDrawModeCopy)
+		local arrowSpacing = 25
+		if folderIndex > 1 then
+			folderArrow:draw(labelX - folderArrow.width - arrowSpacing, labelY + height / 2 - folderArrow.height / 2 + 1, graphics.kImageFlippedX)
+		end
+		if folderIndex < folderCount then
+			folderArrow:draw(labelX + width + arrowSpacing, labelY + height / 2 - folderArrow.height / 2 + 1)
+		end
 	end
 end
 
@@ -773,22 +869,62 @@ end
 -- Update loop
 function playdate.update()
 	if scene == LIBRARY then
+		local folderSwitched = false
+		if playdate.buttonJustPressed(playdate.kButtonLeft) then
+			if booksPerFolder[folderIndex - 1] == nil then
+				return
+			end
+			local bookDifference = highlightedBookInFolder + math.max(0, booksPerFolder[folderIndex - 1] - highlightedBookInFolder)
+			if bookDifference == nil then
+				bookDifference = 0
+			end
+			offset = offset - BOOK_OFFSET_SIZE * bookDifference
+			folderIndexScrollOffset = -FOLDER_SPACING
+			folderSwitched = true
+		end
+		if playdate.buttonJustPressed(playdate.kButtonRight) then
+			if booksPerFolder[folderIndex + 1] == nil then
+				return
+			end
+			local bookDifference = booksPerFolder[folderIndex] - highlightedBookInFolder + math.min(highlightedBookInFolder, booksPerFolder[folderIndex + 1])
+			offset = offset + BOOK_OFFSET_SIZE * bookDifference
+			folderIndexScrollOffset = FOLDER_SPACING
+			folderSwitched = true
+		end
+
 		local maxLibraryOffset = (#availableBooks - 0.45) * BOOK_OFFSET_SIZE
 		offset = max(0, offset)
 		offset = min(offset, maxLibraryOffset)
 		local bookIndex = min(#availableBooks, floor(offset / BOOK_OFFSET_SIZE) + 1)
 		if highlightedBook ~= nil then
-			if bookIndex < highlightedBook then
-				hightlightedBookScrollOffset = 30
+			if folderSwitched then
+				highlightedBookScrollOffset = 0
+			elseif bookIndex < highlightedBook then
+				highlightedBookScrollOffset = 30
 			elseif bookIndex > highlightedBook then
-				hightlightedBookScrollOffset = -30
+				highlightedBookScrollOffset = -30
 			end
 		end
 		highlightedBook = bookIndex
-		if hightlightedBookScrollOffset > 0 then
-			hightlightedBookScrollOffset = max(0, hightlightedBookScrollOffset - 5)
-		elseif hightlightedBookScrollOffset < 0 then
-			hightlightedBookScrollOffset = min(0, hightlightedBookScrollOffset + 5)
+		if highlightedBookScrollOffset > 0 then
+			highlightedBookScrollOffset = max(0, highlightedBookScrollOffset - 5)
+		elseif highlightedBookScrollOffset < 0 then
+			highlightedBookScrollOffset = min(0, highlightedBookScrollOffset + 5)
+		end
+		if folderIndexScrollOffset > 0 then
+			folderIndexScrollOffset = max(0, folderIndexScrollOffset - 45)
+		elseif folderIndexScrollOffset < 0 then
+			folderIndexScrollOffset = min(0, folderIndexScrollOffset + 45)
+		end
+		local sum = 0
+		for i = 1, #booksPerFolder do
+			if sum + booksPerFolder[i] > highlightedBook - 1 then
+				highlightedBookInFolder = highlightedBook - sum
+				folderIndex = i
+				break
+			else
+				sum = sum + booksPerFolder[i]
+			end
 		end
 		drawLibrary()
 	elseif scene == READER then
@@ -1072,7 +1208,9 @@ end
 
 function playdate.leftButtonDown()
 	-- print("left")
-	directionHeld = 6
+	if scene == READER then
+		directionHeld = 6
+	end
 end
 
 function playdate.leftButtonUp()
@@ -1081,7 +1219,9 @@ end
 
 function playdate.rightButtonDown()
 	-- print("right")
-	directionHeld = -6
+	if scene == READER then
+		directionHeld = -6
+	end
 end
 
 function playdate.rightButtonUp()
