@@ -782,7 +782,7 @@ local drawLibrary = function ()
 		end
 		drawBook(x, y, availableBooks[i].name, progress, highlightedBook == i)
 	end
-	-- Draw stack name
+	-- Draw folder label
 	if folderCount > 1 then
 		local folder = availableBooks[highlightedBook].folder
 		if folder == "root" then
@@ -793,18 +793,18 @@ local drawLibrary = function ()
 			return first:upper() .. rest:lower()
 		end)
 		local width, height = graphics.getTextSize(folder)
-		local folderX = DEVICE_WIDTH / 2 - width / 2
-		local folderY = DEVICE_HEIGHT - 31 + libraryOffset - min(0, fallingBookProgress / 2 - bottom)
-		graphics.fillRoundRect(folderX - 10, folderY + 2, width + 20, height - 2, 8)
+		local labelX = DEVICE_WIDTH / 2 - width / 2
+		local labelY = DEVICE_HEIGHT - 31 + libraryOffset - min(0, fallingBookProgress / 2 - bottom)
+		graphics.fillRoundRect(labelX - 10, labelY + 2, width + 20, height - 2, 8)
 		graphics.setImageDrawMode(graphics.kDrawModeInverted)
-		graphics.drawText(folder, folderX, folderY)
+		graphics.drawText(folder, labelX, labelY)
 		graphics.setImageDrawMode(graphics.kDrawModeCopy)
 		local arrowSpacing = 25
 		if folderIndex > 1 then
-			folderArrow:draw(folderX - folderArrow.width - arrowSpacing, folderY + height / 2 - folderArrow.height / 2 + 1, graphics.kImageFlippedX)
+			folderArrow:draw(labelX - folderArrow.width - arrowSpacing, labelY + height / 2 - folderArrow.height / 2 + 1, graphics.kImageFlippedX)
 		end
 		if folderIndex < folderCount then
-			folderArrow:draw(folderX + width + arrowSpacing, folderY + height / 2 - folderArrow.height / 2 + 1)
+			folderArrow:draw(labelX + width + arrowSpacing, labelY + height / 2 - folderArrow.height / 2 + 1)
 		end
 	end
 end
@@ -869,12 +869,37 @@ end
 -- Update loop
 function playdate.update()
 	if scene == LIBRARY then
+		local folderSwitched = false
+		if playdate.buttonJustPressed(playdate.kButtonLeft) then
+			if booksPerFolder[folderIndex - 1] == nil then
+				return
+			end
+			local bookDifference = highlightedBookInFolder + math.max(0, booksPerFolder[folderIndex - 1] - highlightedBookInFolder)
+			if bookDifference == nil then
+				bookDifference = 0
+			end
+			offset = offset - BOOK_OFFSET_SIZE * bookDifference
+			folderIndexScrollOffset = -FOLDER_SPACING
+			folderSwitched = true
+		end
+		if playdate.buttonJustPressed(playdate.kButtonRight) then
+			if booksPerFolder[folderIndex + 1] == nil then
+				return
+			end
+			local bookDifference = booksPerFolder[folderIndex] - highlightedBookInFolder + math.min(highlightedBookInFolder, booksPerFolder[folderIndex + 1])
+			offset = offset + BOOK_OFFSET_SIZE * bookDifference
+			folderIndexScrollOffset = FOLDER_SPACING
+			folderSwitched = true
+		end
+
 		local maxLibraryOffset = (#availableBooks - 0.45) * BOOK_OFFSET_SIZE
 		offset = max(0, offset)
 		offset = min(offset, maxLibraryOffset)
 		local bookIndex = min(#availableBooks, floor(offset / BOOK_OFFSET_SIZE) + 1)
 		if highlightedBook ~= nil then
-			if bookIndex < highlightedBook then
+			if folderSwitched then
+				highlightedBookScrollOffset = 0
+			elseif bookIndex < highlightedBook then
 				highlightedBookScrollOffset = 30
 			elseif bookIndex > highlightedBook then
 				highlightedBookScrollOffset = -30
@@ -887,9 +912,9 @@ function playdate.update()
 			highlightedBookScrollOffset = min(0, highlightedBookScrollOffset + 5)
 		end
 		if folderIndexScrollOffset > 0 then
-			folderIndexScrollOffset = max(0, folderIndexScrollOffset - 40)
+			folderIndexScrollOffset = max(0, folderIndexScrollOffset - 45)
 		elseif folderIndexScrollOffset < 0 then
-			folderIndexScrollOffset = min(0, folderIndexScrollOffset + 40)
+			folderIndexScrollOffset = min(0, folderIndexScrollOffset + 45)
 		end
 		local sum = 0
 		for i = 1, #booksPerFolder do
@@ -1183,17 +1208,7 @@ end
 
 function playdate.leftButtonDown()
 	-- print("left")
-	if scene == LIBRARY then
-		if booksPerFolder[folderIndex - 1] == nil then
-			return
-		end
-		local bookDifference = highlightedBookInFolder + math.max(0, booksPerFolder[folderIndex - 1] - highlightedBookInFolder)
-		if bookDifference == nil then
-			bookDifference = 0
-		end
-		offset = offset - BOOK_OFFSET_SIZE * bookDifference
-		folderIndexScrollOffset = -FOLDER_SPACING
-	elseif scene == READER then
+	if scene == READER then
 		directionHeld = 6
 	end
 end
@@ -1204,14 +1219,7 @@ end
 
 function playdate.rightButtonDown()
 	-- print("right")
-	if scene == LIBRARY then
-		if booksPerFolder[folderIndex + 1] == nil then
-			return
-		end
-		local bookDifference = booksPerFolder[folderIndex] - highlightedBookInFolder + math.min(highlightedBookInFolder, booksPerFolder[folderIndex + 1])
-		offset = offset + BOOK_OFFSET_SIZE * bookDifference
-		folderIndexScrollOffset = FOLDER_SPACING
-	elseif scene == READER then
+	if scene == READER then
 		directionHeld = -6
 	end
 end
