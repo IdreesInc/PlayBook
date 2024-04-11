@@ -997,6 +997,8 @@ function preprocessText(text)
 	local newText = string.gsub(text, "	", "")
 	-- Collapse multiple newlines into two
 	newText = string.gsub(newText, "\n\n+", "\n\n")
+	-- Replace CR + LF with LF
+	newText = string.gsub(newText, "\r\n", "\n")
 	return newText
 end
 
