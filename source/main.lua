@@ -40,6 +40,11 @@ local FONTS <const> = {
 		font = graphics.font.new("fonts/roboto-slab-12")
 	},
 	{
+		name = "Asheville Ayu",
+		font = graphics.font.new("fonts/asheville/Asheville-Ayu"),
+		height = 20
+	},
+	{
 		name = "Roobert",
 		font = graphics.font.new("fonts/roobert/Roobert-11-Medium")
 	},
@@ -485,7 +490,11 @@ function reloadReader()
 	graphics.setFont(FONTS[readerFontId].font)
 
 	-- Calculate the line height
-	lineHeight = graphics.getTextSize("A") * 1.6
+	if FONTS[readerFontId].height ~= nil then
+		lineHeight = FONTS[readerFontId].height
+	else
+		lineHeight = graphics.getTextSize("A") * 1.6
+	end
 
 	if currentBookSettings ~= nil then
 		-- Split the text into lines
@@ -988,6 +997,94 @@ function appendLines(additionalLines, startChar)
 	return linesAdded
 end
 
+local function isStartOfChar(byte)
+	-- Determine if a byte is an ASCII character or the start of a multi-byte UTF-8 character
+	-- ASCII characters are 0xxxxxxx in binary, which is less than 128 in decimal
+	-- The start of a multi-byte UTF-8 character is 110xxxxx or 1110xxxx or 11110xxx in binary, which is greater than or equal to 192 in decimal
+	return byte < 128 or byte >= 192
+end
+
+local function isContinuationByte(byte)
+	return byte >= 128 and byte < 192
+end
+
+local function getCharLength(byte)
+	if byte < 192 then
+		return 1
+	elseif byte < 224 then
+		return 2
+	elseif byte < 240 then
+		return 3
+	elseif byte < 248 then
+		return 4
+	else
+		return 1
+	end
+end
+
+local function findStartOfChar(characters, index, direction)
+	local i = index
+	while i > 1 and i < #characters and not isStartOfChar(characters:byte(i)) do
+		i = i + direction
+	end
+	if isStartOfChar(characters:byte(i)) then
+		return i
+	else
+		return nil
+	end
+end
+
+local function isCompleteChar(char)
+	local firstByte = char:byte(1)
+	-- Return true if the char is an ascci character or if it is a complete utf-8 character
+	-- If it is a utf-8 character, check the start byte to determine what length it is and check if the rest of the bytes are present
+	if not isStartOfChar(firstByte) then
+		return false
+	end
+
+	local charLength = getCharLength(firstByte)
+
+	if #char ~= charLength then
+		return false
+	end
+
+	for i = 2, charLength do
+		if not isContinuationByte(char:byte(i)) then
+			return false
+		end
+	end
+
+	return true
+end
+
+local function stringToBinary(str)
+	local result = ""
+	for i = 1, #str do
+		local byte = string.byte(str, i)
+		local binary = ""
+		for j = 7, 0, -1 do
+			binary = binary .. tostring((byte >> j) & 1)
+		end
+		result = result .. binary .. " "
+	end
+	return result
+end
+
+local function isEndOfChar(characters, index)
+	if isCompleteChar(sub(characters, index, index)) then
+		return true
+	end
+	local i = index
+	while i > 0 and not isStartOfChar(characters:byte(i)) do
+		i = i - 1
+	end
+	if isStartOfChar(characters:byte(i)) then
+		return getCharLength(characters:byte(i)) == index - i + 1
+	else
+		return false
+	end
+end
+
 -- Add the given number of lines to the list
 -- Note that if there are no more lines available, less than the given number of lines will be returned
 function addLines(additionalLines, append, startChar)
@@ -998,36 +1095,77 @@ function addLines(additionalLines, append, startChar)
 		return
 	end
 	-- Initial number of lines
-	local initialNumOfLines = #lines
+	local initialNumOfLines <const> = #lines
 	-- Live number of lines
 	local numOfLines = initialNumOfLines
+	-- The length of the text in characters
+	local textLength <const> = #text
 	-- Index of the character currently being processed
-	local charIndex = 1
+	local byteIndex = 1
+	-- Calculate the starting index
 	if startChar then
-		charIndex = startChar
+		byteIndex = startChar
 	elseif numOfLines > 0 then
 		if append then
-			charIndex = lines[#lines].stop + 1
+			byteIndex = lines[#lines].stop + 1
 		else
-			charIndex = lines[1].start - 1
+			byteIndex = lines[1].start - 1
 		end
 	end
+	if byteIndex < 1 or byteIndex > textLength then
+		-- We are at the beginning or end of the text, no more lines can be added
+		return 0
+	end
+	-- Determine if the start index is valid or needs to be repaired
+	if append then
+		-- When appending, the start index must be the start of a character
+		if not isStartOfChar(sub(text, byteIndex, byteIndex):byte()) then
+			local result = findStartOfChar(text, byteIndex, 1)
+			if result then
+				byteIndex = result
+				print("Repaired start index while appending: " .. byteIndex)
+			else
+				-- If no start of character is found, the text is invalid
+				print("Error: No start of character found while appending, text must be corrupted!")
+				-- TODO: Handle this error
+				return 0
+			end
+		end
+	else
+		-- When prepending, the start index must be the end of a character
+		-- Get the index of the start of the character
+		if not isEndOfChar(text, byteIndex) then
+			local result = findStartOfChar(text, byteIndex, -1)
+			if result then
+				local oldIndex = byteIndex
+				byteIndex = result + getCharLength(text:byte(result)) - 1
+				print("Repaired start index while prepending: " .. byteIndex)
+			else
+				-- If no start of character is found, the text is invalid
+				print("Error: No start of character found while prepending, text must be corrupted!")
+				-- TODO: Handle this error
+				return 0
+			end
+		end
+	end
+
 	-- The max width in pixels that a line can be
-	local MAX_WIDTH = DEVICE_WIDTH - leftMargin - rightMargin
-	-- The size of the text in characters
-	local textSize = #text
+	local MAX_WIDTH <const> = DEVICE_WIDTH - leftMargin - rightMargin
 	-- The text of the current line as it is processed
 	local currentLine = ""
 	-- The index of the first character of the current line
-	local lineStart = charIndex
+	local lineStart = byteIndex
 	-- The index of the last character of the current line
-	local lineStop = charIndex
+	local lineStop = byteIndex
 	-- Index within the line of the last space character in for word wrapping
 	local lastSpace = nil
 	-- Index within the text of the last space character
 	local lastSpaceIndex = nil
 	-- Size of the line in pixels
 	local lineSize = 0
+	-- Constants for calculating the size of characters
+	local TEST_SIZE <const> = graphics.getTextSize("  ")
+	local MIN_SIZE <const> = graphics.getTextSize("i")
 	-- Function to insert a line into the lines table
 	local insertLine = function (line, start, stop, nextLine)
 		if nextLine == nil then
@@ -1051,79 +1189,101 @@ function addLines(additionalLines, append, startChar)
 			lineStart = lineStop - #nextLine
 		end
 	end
-	local testLength = graphics.getTextSize("  ")
-	local minCharSize = graphics.getTextSize("i")
+
+	-- The character being built
+	local char = ""
+	local chunkCount = 0
 	-- Add lines until the target number of lines is reached
 	while numOfLines < initialNumOfLines + additionalLines do
-		if charIndex < 1 or charIndex > textSize then
+		-- Determine if we are at the beginning or end of the text
+		if byteIndex < 1 or byteIndex > textLength then
 			if currentLine ~= "" then
 				insertLine(currentLine, lineStart, lineStop)
 			end
 			break
 		end
-		local char = sub(text, charIndex, charIndex)
-		-- Necessary hack for characters like comma and period
-		local charSize = max(minCharSize, graphics.getTextSize(" " .. char .. " ") - testLength)
-		local combined
+		local chunk = sub(text, byteIndex, byteIndex)
 		if append then
-			combined = currentLine .. char
+			char = char .. chunk
 		else
-			combined = char .. currentLine
+			char = chunk .. char
 		end
-		if char == "\n" then
-			-- Line is added to the list immediately to avoid reinserting the newline the next
-			-- time this function is called
-			if append then
-				lineStop = charIndex
-			else
-				lineStart = charIndex
-			end
-			-- Newline is replaced with whitespace (at the end of the line to avoid printing)
-			insertLine(currentLine .. " ", lineStart, lineStop)
-		elseif lineSize + charSize > MAX_WIDTH then
-			if lastSpace then
-				-- Wrap at last space, excluding the space
+		chunkCount = chunkCount + 1
+		-- Check if the character is complete
+		local charComplete <const> = isCompleteChar(char)
+		if charComplete then
+			-- Necessary hack for characters like comma and period
+			local charSize = max(MIN_SIZE, graphics.getTextSize(" " .. char .. " ") - TEST_SIZE)
+			-- NOTE: Issue is that corrupted chars don't have any size
+			if charSize == 1 and string.byte(char) > 10 then
 				if append then
-					local textBeforeWrap = sub(currentLine, 1, lastSpace)
-					local textAfterWrap = sub(currentLine, lastSpace + 1) .. char
-					insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
-					-- print(textBeforeWrap .. "|" .. textAfterWrap)
+					print("Character is corrupt while appending: " .. stringToBinary(char))
 				else
-					local invertedLastSpace = #currentLine - lastSpace + 1
-					local textBeforeWrap = sub(currentLine, invertedLastSpace + 1)
-					local textAfterWrap = char .. sub(currentLine, 1, invertedLastSpace)
-					insertLine(textBeforeWrap, lineStart + invertedLastSpace, lineStop, textAfterWrap)
-					-- print(textAfterWrap .. "|" .. textBeforeWrap)
+					print("Character is corrupt while prepending: " .. stringToBinary(char))
+				end
+			end
+			local combined
+			if append then
+				combined = currentLine .. char
+			else
+				combined = char .. currentLine
+			end
+			if char == "\n" then
+				-- Line is added to the list immediately to avoid reinserting the newline the next
+				-- time this function is called
+				if append then
+					lineStop = byteIndex
+				else
+					lineStart = byteIndex
+				end
+				-- Newline is replaced with whitespace (at the end of the line to avoid printing)
+				insertLine(currentLine .. " ", lineStart, lineStop)
+			elseif lineSize + charSize > MAX_WIDTH then
+				if lastSpace then
+					-- Wrap at last space, excluding the space
+					if append then
+						local textBeforeWrap = sub(currentLine, 1, lastSpace)
+						local textAfterWrap = sub(currentLine, lastSpace + 1) .. char
+						insertLine(textBeforeWrap, lineStart, lastSpaceIndex, textAfterWrap)
+						-- print(textBeforeWrap .. "|" .. textAfterWrap)
+					else
+						local invertedLastSpace = #currentLine - lastSpace + 1
+						local textBeforeWrap = sub(currentLine, invertedLastSpace + 1)
+						local textAfterWrap = char .. sub(currentLine, 1, invertedLastSpace)
+						insertLine(textBeforeWrap, lineStart + invertedLastSpace, lineStop, textAfterWrap)
+						-- print(textAfterWrap .. "|" .. textBeforeWrap)
+					end
+				else
+					-- Sharp wrap at character
+					insertLine(currentLine, lineStart, lineStop, char)
 				end
 			else
-				-- Sharp wrap at character
-				insertLine(currentLine, lineStart, lineStop, char)
+				-- Normal letter
+				currentLine = combined
+				lineSize = lineSize + charSize
+				if char == " " then
+					-- Update last space to the local index
+					lastSpace = #currentLine
+					-- Update this to the index within the text
+					lastSpaceIndex = byteIndex
+				end
+				if append then
+					lineStop = byteIndex
+				else
+					lineStart = byteIndex
+				end
 			end
-		else
-			-- Normal letter
-			currentLine = combined
-			lineSize = lineSize + charSize
-			if char == " " then
-				-- Update last space to the local index
-				lastSpace = #currentLine
-				-- Update this to the index within the text
-				lastSpaceIndex = charIndex
-			end
-			if append then
-				lineStop = charIndex
-			else
-				lineStart = charIndex
-			end
+			-- Reset the character
+			char = ""
+			chunkCount = 0
 		end
+		-- Iterate to the next byte
 		if append then
-			charIndex = charIndex + 1
+			byteIndex = byteIndex + 1
 		else
-			charIndex = charIndex - 1
+			byteIndex = byteIndex - 1
 		end
 	end
-	-- skipScrollTicks = 1
-	-- skipSoundTicks = 5
-	-- print("Added " .. (numOfLines - initialNumOfLines) .. " lines in " .. playdate.getElapsedTime() .. " seconds")
 	return numOfLines - initialNumOfLines
 end
 
