@@ -1214,7 +1214,6 @@ function addLines(additionalLines, append, startChar)
 		if charComplete then
 			-- Necessary hack for characters like comma and period
 			local charSize = max(MIN_SIZE, graphics.getTextSize(" " .. char .. " ") - TEST_SIZE)
-			-- NOTE: Issue is that corrupted chars don't have any size
 			if charSize == 1 and string.byte(char) > 10 then
 				if append then
 					print("Character is corrupt while appending: " .. stringToBinary(char))
