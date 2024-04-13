@@ -3,5 +3,5 @@ author=Idrees Hassan
 description=A delightful ebook reader for the Playdate
 bundleID=com.idreesinc.playbook
 version=2.0
-buildNumber=6
+buildNumber=7
 imagePath=images/launcher

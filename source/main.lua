@@ -1294,6 +1294,8 @@ function preprocessText(text)
 	newText = string.gsub(newText, "\n\n+", "\n\n")
 	-- Replace CR + LF with LF
 	newText = string.gsub(newText, "\r\n", "\n")
+	-- Replace "–" with "-"
+	newText = string.gsub(newText, "–", "-")
 	return newText
 end
 
