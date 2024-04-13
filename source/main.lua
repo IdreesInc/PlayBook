@@ -1036,8 +1036,6 @@ end
 
 local function isCompleteChar(char)
 	local firstByte = char:byte(1)
-	-- Return true if the char is an ascci character or if it is a complete utf-8 character
-	-- If it is a utf-8 character, check the start byte to determine what length it is and check if the rest of the bytes are present
 	if not isStartOfChar(firstByte) then
 		return false
 	end
