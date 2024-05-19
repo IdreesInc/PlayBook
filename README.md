@@ -1,9 +1,10 @@
 # PlayBook
-A powerful and flexible ebook reader for the Playdate console
+## A powerful and flexible ebook reader for the Playdate console
 
-![](images/banner.png)
 
-### [Get it here in the Catalog!](https://play.date/games/playbook/)
+![web_side_1600x480](https://github.com/IdreesInc/PlayBook/assets/4875804/07ec9ff4-bc34-4d29-b20b-30b8cbf5f2ec)
+
+## **[Get it here in the Catalog!](https://play.date/games/playbook/)**
 
 ## How to Use
 
