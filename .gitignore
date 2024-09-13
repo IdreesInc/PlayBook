@@ -3,3 +3,7 @@
 Output.pdx
 PlayBook.pdx
 builds/*
+/build
+/other
+source/pdex.dylib
+source/pdex.elf

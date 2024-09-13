@@ -13,6 +13,9 @@ local ceil <const> = math.ceil
 local sub <const> = string.sub
 local insert <const> = table.insert
 
+a = array.new(10)
+print("hi")
+
 -- Constants
 -- The maximum size of a file to read in bytes
 local MAX_FILE_SIZE <const> = 4 * 1024 * 1024
@@ -123,13 +126,14 @@ local titleImage <const> = graphics.image.new("images/title.png")
 -- A list of potential subtitles to display
 local POSSIBLE_SUBTITLES <const> = {
 	{"Made by Idrees"},
-	{ "A reader lives a thousand", "lives before he dies" },
+	{"A reader lives a thousand", "lives before he dies"},
 	{"Books are a uniquely", "portable magic"},
 	{"Books are the mirrors", "of the soul."},
 	{"There is no friend", "as loyal as a book"},
 	{"We read to know", "we're not alone"},
 	{"A book is a dream", "that you hold in your hand"},
 	{"A book is a device", "to ignite the imagination"},
+	{"Fully open source!"}
 }
 -- The subtitle currently being displayed
 local subtitle = POSSIBLE_SUBTITLES[8]
@@ -570,33 +574,46 @@ function addBooksFromFolder(folderPath)
 			end
 		end
 	end
-	-- Filter files to only include those that end with .txt
+
+	-- Let's find some epubs boiii
 	for i = #files, 1, -1 do
-		if sub(files[i], #files[i] - 3) == ".txt" then
-			-- It's a book
+		if sub(files[i], #files[i] - 4) == ".epub" then
+			print("Found epub: '" .. files[i] .. "'")
+			-- Unzip the epub
 			local path = folderPath .. files[i]
-			print("Found book: '" .. path .. "'")
-			local name = sub(files[i], 1, #files[i] - 4)
+			local name = sub(files[i], 1, #files[i] - 5)
 			local folderKey = folderPath
-			if folderKey == "" then
-				folderKey = "root"
-			end
-			-- Remove trailing slash
-			if sub(folderKey, #folderKey) == "/" then
-				folderKey = sub(folderKey, 1, #folderKey - 1)
-			end
-			local book = {
-				path = path,
-				name = name,
-				folder = folderKey,
-			}
-			insert(books, book)
+			-- local unzipped = playdate.file.unzip("books/" .. path)
 		end
 	end
-	-- Sort alphabetically to ensure deterministic order
-	table.sort(books, function (a, b)
-		return a.name > b.name
-	end)
+
+	-- -- Filter files to only include those that end with .txt
+	-- for i = #files, 1, -1 do
+	-- 	if sub(files[i], #files[i] - 3) == ".txt" then
+	-- 		-- It's a book
+	-- 		local path = folderPath .. files[i]
+	-- 		print("Found book: '" .. path .. "'")
+	-- 		local name = sub(files[i], 1, #files[i] - 4)
+	-- 		local folderKey = folderPath
+	-- 		if folderKey == "" then
+	-- 			folderKey = "root"
+	-- 		end
+	-- 		-- Remove trailing slash
+	-- 		if sub(folderKey, #folderKey) == "/" then
+	-- 			folderKey = sub(folderKey, 1, #folderKey - 1)
+	-- 		end
+	-- 		local book = {
+	-- 			path = path,
+	-- 			name = name,
+	-- 			folder = folderKey,
+	-- 		}
+	-- 		insert(books, book)
+	-- 	end
+	-- end
+	-- -- Sort alphabetically to ensure deterministic order
+	-- table.sort(books, function (a, b)
+	-- 	return a.name > b.name
+	-- end)
 	return books
 end
 
