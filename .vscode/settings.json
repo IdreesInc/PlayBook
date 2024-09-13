@@ -10,6 +10,7 @@
 		"array.h": "c",
 		"utilities.h": "c",
 		"unzip.h": "c",
-		"errno.h": "c"
+		"errno.h": "c",
+		"locale": "c"
 	}
 }

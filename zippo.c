@@ -196,10 +196,23 @@ int32_t mySeek(void *p, int32_t position, int iType)
     return pd->file->seek(f, position, iType);
 }
 
-void readStuff(char *zipfilename, char *contentname)
+static void ListFilesCallback(const char *name, void *userdata) {
+    pd->system->logToConsole("File: %s", name);
+}
+
+int32_t listFiles()
 {
-    // listFiles(pd);
-    pd->system->logToConsole("reading files");
+	pd->system->logToConsole("Listing files...");
+	pd->file->listfiles(".", ListFilesCallback, 0, 0);
+	return 0;
+}
+
+void readFromZip(lua_State* L) {
+	const char *zipfilename = pd->lua->getArgString(1);
+	const char *contentname = pd->lua->getArgString(2);
+
+    listFiles();
+    pd->system->logToConsole("Reading stuff from %s", zipfilename);
     int rc = 0;
     ZIPFILE zpf;
     unzFile zHandle = unzOpen(zipfilename, NULL, 0, &zpf, myOpen, myRead, mySeek, myClose);
@@ -281,7 +294,7 @@ static const lua_reg zippoLib[] =
 	{ "getMinimum", zippo_getmin },
 	{ "getMaximum", zippo_getmax },
 	{ "getAverage", zippo_getavg },
-	{ "readStuff", readStuff },
+	{ "readFromZip", readFromZip },
 	{ "myTest", myTest },
 	{ NULL, NULL }
 };
