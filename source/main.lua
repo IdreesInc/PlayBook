@@ -13,8 +13,7 @@ local ceil <const> = math.ceil
 local sub <const> = string.sub
 local insert <const> = table.insert
 
-a = array.new(10)
-print("hi")
+zippo.myTest()
 
 -- Constants
 -- The maximum size of a file to read in bytes

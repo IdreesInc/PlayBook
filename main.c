@@ -12,12 +12,14 @@
 
 #include "pd_api.h"
 #include "array.h"
+#include "zippo.h"
 
 static PlaydateAPI* pd = NULL;
 
 #ifdef _WINDLL
 __declspec(dllexport)
 #endif
+
 int eventHandler(PlaydateAPI* playdate, PDSystemEvent event, uint32_t arg)
 {
 	(void)arg;
@@ -25,7 +27,7 @@ int eventHandler(PlaydateAPI* playdate, PDSystemEvent event, uint32_t arg)
 	if ( event == kEventInitLua )
 	{
 		pd = playdate;
-		registerArray(pd);
+		registerZippo(pd);
 	}
 
 	return 0;
