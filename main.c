@@ -13,6 +13,7 @@
 #include "pd_api.h"
 #include "array.h"
 #include "zippo.h"
+#include "yxml.h"
 
 static PlaydateAPI* pd = NULL;
 

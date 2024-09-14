@@ -16,7 +16,7 @@ endif
 UNZIP_DIR = ./unzip
 
 # List C source files here
-SRC = main.c array.c zippo.c $(wildcard $(UNZIP_DIR)/*.c)
+SRC = main.c array.c zippo.c yxml.c $(wildcard $(UNZIP_DIR)/*.c)
 
 # List all user directories here
 UINCDIR = 

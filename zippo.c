@@ -207,9 +207,11 @@ int32_t listFiles()
 	return 0;
 }
 
-void readFromZip(lua_State* L) {
+static void readFromZip(lua_State* L) {
 	const char *zipfilename = pd->lua->getArgString(1);
 	const char *contentname = pd->lua->getArgString(2);
+	// Create a variable to store the contents of the file
+	char fileContents[10000];
 
     listFiles();
     pd->system->logToConsole("Reading stuff from %s", zipfilename);
@@ -259,24 +261,62 @@ void readFromZip(lua_State* L) {
         rc = 1;
         int i = 0;
 
-        char szTemp[256];
-        while (rc > 0 && i <= 1024) // just read the first 1024 bytes
-        {
-            rc = unzReadCurrentFile(zHandle, szTemp, sizeof(szTemp));
-            if (rc >= 0)
-            {
-                i += rc;
-                if (rc > 0)
-                {
-                    pd->system->logToConsole("%s", szTemp);
-                }
-            }
-            else
-            {
-                pd->system->logToConsole("Error reading from file\n");
-                break;
-            }
-        }
+		// Initialize a pointer to hold the file contents
+		char *fileContents = NULL;
+		size_t fileSize = 0;
+		size_t bufferSize = 256; // Initial buffer size
+		char szTemp[256];
+		int rc = 1; // Initial value to enter the loop
+
+		// Read until we reach the end of the file
+		while (rc > 0)
+		{
+			rc = unzReadCurrentFile(zHandle, szTemp, sizeof(szTemp));
+			if (rc >= 0)
+			{
+				if (rc > 0)
+				{
+					// Reallocate memory to hold the new data
+					char *newBuffer = realloc(fileContents, fileSize + rc + 1); // +1 for null terminator
+					if (newBuffer == NULL)
+					{
+						pd->system->logToConsole("Memory allocation failed\n");
+						free(fileContents); // Free the previously allocated memory
+						fileContents = NULL;
+						break;
+					}
+					
+					fileContents = newBuffer;
+					// Copy the read data into the new buffer space
+					memcpy(fileContents + fileSize, szTemp, rc);
+					fileSize += rc;
+					fileContents[fileSize] = '\0'; // Null-terminate the string
+				}
+			}
+			else
+			{
+				pd->system->logToConsole("Error reading from file\n");
+				free(fileContents); // Free allocated memory on error
+				fileContents = NULL;
+				break;
+			}
+		}
+
+		// At this point, fileContents contains the entire file
+		if (fileContents != NULL)
+		{
+			// Print the file contents split line by line
+			char *line = strtok(fileContents, "\n");
+			while (line != NULL)
+			{
+				pd->system->logToConsole("%s", line);
+				line = strtok(NULL, "\n");
+			}
+
+			// Use fileContents here
+			free(fileContents);
+		}
+
         pd->system->logToConsole("Total bytes read = %d (reading 256 bytes at a time)\n", i);
         rc = unzCloseCurrentFile(zHandle);
         unzClose(zHandle);
