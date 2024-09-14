@@ -1,5 +1,6 @@
 #include "zippo.h"
 #include "unzip/unzip.h"
+#include "yxml.h"
 
 static PlaydateAPI* pd = NULL;
 
@@ -309,9 +310,46 @@ static void readFromZip(lua_State* L) {
 			char *line = strtok(fileContents, "\n");
 			while (line != NULL)
 			{
-				pd->system->logToConsole("%s", line);
+				// pd->system->logToConsole("%s", line);
 				line = strtok(NULL, "\n");
 			}
+
+			// Terminate the file contents string with a null character
+			fileContents[fileSize] = '\0';
+
+			// Parse the XML file
+			yxml_t x;
+			yxml_init(&x, fileContents, fileSize);
+			for (int i = 0; i < fileSize; i++)
+			{
+				int r = yxml_parse(&x, fileContents[i]);
+				while (r > 0)
+				{
+					switch (r)
+					{
+					case YXML_ELEMSTART:
+						pd->system->logToConsole("Element start: %s", x.elem);
+						break;
+					case YXML_ELEMEND:
+						pd->system->logToConsole("Element end: %s", x.elem);
+						break;
+					case YXML_ATTRSTART:
+						pd->system->logToConsole("Attribute start: %s", x.attr);
+						break;
+					case YXML_ATTREND:
+						pd->system->logToConsole("Attribute end: %s", x.attr);
+						break;
+					case YXML_CONTENT:
+						// pd->system->logToConsole("Content: %s", x.data);
+						break;
+					default:
+						break;
+					}
+					r = yxml_parse(&x, 0);
+				}
+			}
+			pd->system->logToConsole("Parsed XML file");
+
 
 			// Use fileContents here
 			free(fileContents);
