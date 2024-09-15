@@ -1,19 +1,11 @@
 {
+	"C_Cpp.default.includePath": ["${env:PLAYDATE_SDK_PATH}/C_API"],
+	"C_Cpp.default.defines": ["TARGET_EXTENSION", "PLAYDATE_SIMULATOR"],
+	"[c]": {
+	  "editor.defaultFormatter": "ms-vscode.cpptools"
+	},
+	"C_Cpp.formatting": "vcFormat",
 	"files.associations": {
-		"*.json.liquid": "json",
-		"*.yaml.liquid": "yaml",
-		"*.md.liquid": "markdown",
-		"*.js.liquid": "liquid-javascript",
-		"*.css.liquid": "liquid-css",
-		"*.scss.liquid": "liquid-scss",
-		"*.const": "swift",
-		"array.h": "c",
-		"utilities.h": "c",
-		"unzip.h": "c",
-		"errno.h": "c",
-		"locale": "c",
-		"zutil.h": "c",
-		"inftrees.h": "c",
-		"stdio.h": "c"
+	  "*.h": "c"
 	}
-}
+  }

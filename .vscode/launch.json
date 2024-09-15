@@ -1,0 +1,22 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+	  {
+		"name": "Debug",
+		"type": "cppdbg",
+		"request": "launch",
+		"program": "/Users/idrees/Developer/PlaydateSDK/bin/Playdate Simulator.app",
+		"args": ["${workspaceFolder}/PlayBook.pdx"],
+		"stopAtEntry": false,
+		"cwd": "${fileDirname}",
+		"environment": [{
+			"name": "PLAYDATE_SDK_PATH",
+			"value": "/Users/idrees/Developer/PlaydateSDK"
+		}],
+		"externalConsole": false,
+		"MIMode": "lldb",
+		"preLaunchTask": "make"
+	  }
+	]
+  }
+  
