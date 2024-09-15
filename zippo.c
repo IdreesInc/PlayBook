@@ -167,11 +167,6 @@ void *myOpen(const char *filename, int32_t *size)
     return (void *)myfile;
 }
 
-void myTest(void)
-{
-	pd->system->logToConsole("Test function called");
-}
-
 void myClose(void *p)
 {
     ZIPFILE *pzf = (ZIPFILE *)p;
@@ -202,14 +197,13 @@ static void ListFilesCallback(const char *name, void *userdata) {
     pd->system->logToConsole("File: %s", name);
 }
 
-int32_t listFiles()
-{
+int32_t listFiles(void) {
 	pd->system->logToConsole("Listing files...");
 	pd->file->listfiles(".", ListFilesCallback, 0, 0);
 	return 0;
 }
 
-static void readFromZip(lua_State* L) {
+static int readFromZip(lua_State* L) {
 	const char *zipfilename = pd->lua->getArgString(1);
 	const char *contentname = pd->lua->getArgString(2);
 	// Create a variable to store the contents of the file
@@ -322,6 +316,7 @@ static void readFromZip(lua_State* L) {
         rc = unzCloseCurrentFile(zHandle);
         unzClose(zHandle);
     }
+	return 0;
 }
 
 typedef struct
@@ -368,7 +363,7 @@ static bool withinManifest(ElementName* stack, int top) {
 	return stackContains(stack, top, MANIFEST);
 }
 
-static void readEpub(lua_State* L) {
+static int readEpub(lua_State* L) {
 	const char *zipfilename = pd->lua->getArgString(1);
 
 	// Create a variable to store the contents of the file
@@ -552,6 +547,7 @@ static void readEpub(lua_State* L) {
         rc = unzCloseCurrentFile(zHandle);
         unzClose(zHandle);
     }
+	return 0;
 }
 
 
@@ -567,7 +563,6 @@ static const lua_reg zippoLib[] =
 	{ "getAverage", zippo_getavg },
 	{ "readFromZip", readFromZip },
 	{ "readEpub", readEpub },
-	{ "myTest", myTest },
 	{ NULL, NULL }
 };
 

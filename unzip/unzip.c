@@ -4,6 +4,12 @@
    Read unzip.h for more info
 */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wdeprecated-non-prototype"
+#pragma GCC diagnostic ignored "-Wincompatible-pointer-types"
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1313,3 +1319,5 @@ uLong uSizeBuf;
 		*(szComment + s->gi.size_comment) = '\0';
 	return (int)uReadThis;
 } /* unzGetGlobalComment() */
+
+#pragma GCC diagnostic pop

@@ -5,6 +5,10 @@
 
 /* @(#) $Id$ */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wdeprecated-non-prototype"
+
 #include "zutil.h"
 #ifndef Z_SOLO
 #  include "gzguts.h"
@@ -324,3 +328,5 @@ void ZLIB_INTERNAL zcfree (opaque, ptr)
 #endif /* MY_ZCALLOC */
 
 #endif /* !Z_SOLO */
+
+#pragma GCC diagnostic pop

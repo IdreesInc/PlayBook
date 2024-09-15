@@ -3,6 +3,10 @@
  * For conditions of distribution and use, see copyright notice in zlib.h
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wdeprecated-non-prototype"
+
 #include "zutil.h"
 #include "inftrees.h"
 
@@ -302,3 +306,5 @@ unsigned short FAR *work;
     *bits = root;
     return 0;
 }
+
+#pragma GCC diagnostic pop

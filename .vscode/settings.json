@@ -11,6 +11,9 @@
 		"utilities.h": "c",
 		"unzip.h": "c",
 		"errno.h": "c",
-		"locale": "c"
+		"locale": "c",
+		"zutil.h": "c",
+		"inftrees.h": "c",
+		"stdio.h": "c"
 	}
 }

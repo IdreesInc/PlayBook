@@ -80,6 +80,10 @@
  * The history for versions after 1.2.0 are in ChangeLog in zlib distribution.
  */
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpragmas"
+#pragma GCC diagnostic ignored "-Wdeprecated-non-prototype"
+
 #include "zutil.h"
 #include "inftrees.h"
 #include "inflate.h"
@@ -1560,3 +1564,5 @@ z_streamp strm;
     state = (struct inflate_state FAR *)strm->state;
     return (unsigned long)(state->next - state->codes);
 }
+
+#pragma GCC diagnostic pop
