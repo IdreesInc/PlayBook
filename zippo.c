@@ -1,3 +1,4 @@
+#include <stdbool.h>
 #include "zippo.h"
 #include "unzip/unzip.h"
 #include "yxml.h"
@@ -310,6 +311,149 @@ static void readFromZip(lua_State* L) {
 			char *line = strtok(fileContents, "\n");
 			while (line != NULL)
 			{
+				pd->system->logToConsole("%s", line);
+				line = strtok(NULL, "\n");
+			}
+			// Use fileContents here
+			free(fileContents);
+		}
+
+        pd->system->logToConsole("Total bytes read = %d (reading 256 bytes at a time)\n", i);
+        rc = unzCloseCurrentFile(zHandle);
+        unzClose(zHandle);
+    }
+}
+
+typedef struct
+{
+	char *id;
+	char *href;
+} ManifestItem;
+
+// Make an enum of relevant element names including MANIFEST and ITEM
+typedef enum
+{
+	UNKNOWN,
+	MANIFEST,
+	ITEM
+} ElementName;
+
+int MAX_STACK_SIZE = 10000;
+
+static void pushElement(ElementName* stack, int top, ElementName element) {
+	// print everything
+	stack[top] = element;
+}
+
+static int popElement(ElementName* stack, int* top) {
+	if (*top > 0) {
+		(*top)--;
+		return stack[*top];
+	}
+	return 0;
+}
+
+
+
+static bool stackContains(ElementName* stack, int top, ElementName element) {
+	for (int i = 0; i < top; i++) {
+		if (stack[i] == element) {
+			return true;
+		}
+	}
+	return false;
+}
+
+static bool withinManifest(ElementName* stack, int top) {
+	return stackContains(stack, top, MANIFEST);
+}
+
+static void readEpub(lua_State* L) {
+	const char *zipfilename = pd->lua->getArgString(1);
+
+	// Create a variable to store the contents of the file
+	char fileContents[10000];
+
+    listFiles();
+    pd->system->logToConsole("Reading stuff from %s", zipfilename);
+    int rc = 0;
+    ZIPFILE zpf;
+    unzFile zHandle = unzOpen(zipfilename, NULL, 0, &zpf, myOpen, myRead, mySeek, myClose);
+
+    if (zHandle == NULL) {
+        pd->system->logToConsole("Failed to open %s", zipfilename);
+    } else {
+        pd->system->logToConsole("We got a handle: %d", zHandle);
+    }
+
+    char szComment[256];
+    rc = unzGetGlobalComment(zHandle, szComment, sizeof(szComment));
+    if (rc == UNZ_OK) {
+        pd->system->logToConsole("comment: %s", &szComment);
+    } else {
+        pd->system->logToConsole("bad comment %d", rc);
+    }
+
+	char *contentPath = "OEBPS/content.opf";
+    rc = unzLocateFile(zHandle, contentPath, 2);
+
+    if (rc != UNZ_OK) {
+        pd->system->logToConsole("File %s not found within archive", contentPath);
+        unzClose(zHandle);
+        //return -1;
+    } else {
+        pd->system->logToConsole("file found");
+        rc = unzOpenCurrentFile(zHandle); /* Try to open the file we want */
+        if (rc != UNZ_OK) {
+            pd->system->logToConsole("Error opening file = %d\n", rc);
+            unzClose(zHandle);
+            //return -1;
+        }
+        
+		pd->system->logToConsole("File located within archive.\n");
+        rc = 1;
+        int i = 0;
+
+		// Initialize a pointer to hold the file contents
+		char *fileContents = NULL;
+		size_t fileSize = 0;
+		size_t bufferSize = 256; // Initial buffer size
+		char szTemp[256];
+		int rc = 1; // Initial value to enter the loop
+
+		// Read until we reach the end of the file
+		while (rc > 0) {
+			rc = unzReadCurrentFile(zHandle, szTemp, sizeof(szTemp));
+			if (rc >= 0) {
+				if (rc > 0) {
+					// Reallocate memory to hold the new data
+					char *newBuffer = realloc(fileContents, fileSize + rc + 1); // +1 for null terminator
+					if (newBuffer == NULL) {
+						pd->system->logToConsole("Memory allocation failed\n");
+						free(fileContents); // Free the previously allocated memory
+						fileContents = NULL;
+						break;
+					}
+					
+					fileContents = newBuffer;
+					// Copy the read data into the new buffer space
+					memcpy(fileContents + fileSize, szTemp, rc);
+					fileSize += rc;
+					fileContents[fileSize] = '\0'; // Null-terminate the string
+				}
+			} else {
+				pd->system->logToConsole("Error reading from file\n");
+				free(fileContents); // Free allocated memory on error
+				fileContents = NULL;
+				break;
+			}
+		}
+
+		// At this point, fileContents contains the entire file
+		if (fileContents != NULL) {
+			// Print the file contents split line by line
+			char *line = strtok(fileContents, "\n");
+			while (line != NULL) {
 				// pd->system->logToConsole("%s", line);
 				line = strtok(NULL, "\n");
 			}
@@ -320,24 +464,73 @@ static void readFromZip(lua_State* L) {
 			// Parse the XML file
 			yxml_t x;
 			yxml_init(&x, fileContents, fileSize);
-			for (int i = 0; i < fileSize; i++)
-			{
+			
+			ElementName elementStack[MAX_STACK_SIZE];
+			int elementStackTop = 0;
+
+			ManifestItem *manifestItems = NULL;
+			ManifestItem *currentManifestItem = NULL;
+			// Store the current attribute value
+			char *currentAttributeValue = NULL;
+			for (int i = 0; i < fileSize; i++) {
 				int r = yxml_parse(&x, fileContents[i]);
-				while (r > 0)
-				{
-					switch (r)
-					{
+				while (r > 0) {
+					switch (r) {
 					case YXML_ELEMSTART:
 						pd->system->logToConsole("Element start: %s", x.elem);
+						if (strcmp(x.elem, "manifest") == 0) {
+							// pushElement(elementStack, elementStackTop, MANIFEST);
+							elementStackTop++;
+							// elementStackTop++;
+						} else if (strcmp(x.elem, "item") == 0 && withinManifest(elementStack, elementStackTop)) {
+							// pushElement(elementStack, elementStackTop, ITEM);
+							elementStackTop++;
+						// 	// Allocate memory for a new manifest item
+						// 	currentManifestItem = malloc(sizeof(ManifestItem));
+						} else {
+							// pushElement(elementStack, elementStackTop, UNKNOWN);
+							elementStackTop++;
+						}
 						break;
 					case YXML_ELEMEND:
-						pd->system->logToConsole("Element end: %s", x.elem);
+						// Cannot use x.elem to determine closing element: https://code.blicky.net/yorhel/yxml/issues/7
+						pd->system->logToConsole("Element end: %s", popElement(elementStack, &elementStackTop));
 						break;
 					case YXML_ATTRSTART:
 						pd->system->logToConsole("Attribute start: %s", x.attr);
 						break;
 					case YXML_ATTREND:
 						pd->system->logToConsole("Attribute end: %s", x.attr);
+						// Print the attribute value
+						pd->system->logToConsole("Attribute value: %s", currentAttributeValue);
+						if (withinManifest(elementStack, elementStackTop)) {
+							if (currentManifestItem == NULL) {
+								pd->system->logToConsole("Current manifest item is NULL");
+							} else if (strcmp(x.attr, "id") == 0) {
+								currentManifestItem->id = currentAttributeValue;
+								pd->system->logToConsole("Manifest item id: %s", currentManifestItem->id);
+							} else if (strcmp(x.attr, "href") == 0) {
+								currentManifestItem->href = currentAttributeValue;
+								pd->system->logToConsole("Manifest item href: %s", currentManifestItem->href);
+							}
+						}
+						// Clear the current attribute value
+						free(currentAttributeValue);
+						currentAttributeValue = NULL;
+						break;
+					case YXML_ATTRVAL:
+						// pd->system->logToConsole("Attribute value part: %s", x.data);
+						if (currentAttributeValue == NULL) {
+							currentAttributeValue = malloc(strlen(x.data) + 1);
+							strcpy(currentAttributeValue, x.data);
+						} else {
+							char *newAttributeValue = realloc(currentAttributeValue, strlen(currentAttributeValue) + strlen(x.data) + 1);
+							if (newAttributeValue == NULL) {
+								pd->system->logToConsole("Memory allocation failed");
+							}
+							strcat(newAttributeValue, x.data);
+							currentAttributeValue = newAttributeValue;	
+						}
 						break;
 					case YXML_CONTENT:
 						// pd->system->logToConsole("Content: %s", x.data);
@@ -373,6 +566,7 @@ static const lua_reg zippoLib[] =
 	{ "getMaximum", zippo_getmax },
 	{ "getAverage", zippo_getavg },
 	{ "readFromZip", readFromZip },
+	{ "readEpub", readEpub },
 	{ "myTest", myTest },
 	{ NULL, NULL }
 };

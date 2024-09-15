@@ -13,7 +13,7 @@ local ceil <const> = math.ceil
 local sub <const> = string.sub
 local insert <const> = table.insert
 
-zippo.readFromZip("./moby.epub", "OEBPS/3484760691463238453_2701-h-1.htm.html");
+zippo.readEpub("./moby.epub");
 
 -- Constants
 -- The maximum size of a file to read in bytes
