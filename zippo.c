@@ -333,22 +333,7 @@ typedef enum
 	ITEM
 } ElementName;
 
-int MAX_STACK_SIZE = 10000;
-
-static void pushElement(ElementName* stack, int top, ElementName element) {
-	// print everything
-	stack[top] = element;
-}
-
-static int popElement(ElementName* stack, int* top) {
-	if (*top > 0) {
-		(*top)--;
-		return stack[*top];
-	}
-	return 0;
-}
-
-
+const int MAX_STACK_SIZE = 10000;
 
 static bool stackContains(ElementName* stack, int top, ElementName element) {
 	for (int i = 0; i < top; i++) {
@@ -460,7 +445,7 @@ static int readEpub(lua_State* L) {
 			yxml_t x;
 			yxml_init(&x, fileContents, fileSize);
 			
-			ElementName elementStack[MAX_STACK_SIZE];
+			ElementName elementStack[10000] = {UNKNOWN};
 			int elementStackTop = 0;
 
 			ManifestItem *manifestItems = NULL;
@@ -474,22 +459,20 @@ static int readEpub(lua_State* L) {
 					case YXML_ELEMSTART:
 						pd->system->logToConsole("Element start: %s", x.elem);
 						if (strcmp(x.elem, "manifest") == 0) {
-							// pushElement(elementStack, elementStackTop, MANIFEST);
-							elementStackTop++;
-							// elementStackTop++;
+							elementStack[elementStackTop] = MANIFEST;
 						} else if (strcmp(x.elem, "item") == 0 && withinManifest(elementStack, elementStackTop)) {
-							// pushElement(elementStack, elementStackTop, ITEM);
-							elementStackTop++;
-						// 	// Allocate memory for a new manifest item
-						// 	currentManifestItem = malloc(sizeof(ManifestItem));
+							elementStack[elementStackTop] = ITEM;
 						} else {
-							// pushElement(elementStack, elementStackTop, UNKNOWN);
-							elementStackTop++;
+							elementStack[elementStackTop] = UNKNOWN;
 						}
+							elementStackTop++;
 						break;
 					case YXML_ELEMEND:
 						// Cannot use x.elem to determine closing element: https://code.blicky.net/yorhel/yxml/issues/7
-						pd->system->logToConsole("Element end: %s", popElement(elementStack, &elementStackTop));
+						elementStackTop--;
+						const char* elementNameStr = (elementStack[elementStackTop] == MANIFEST) ? "MANIFEST" :
+													 (elementStack[elementStackTop] == ITEM) ? "ITEM" : "UNKNOWN";
+						pd->system->logToConsole("Element end: %s", elementNameStr);
 						break;
 					case YXML_ATTRSTART:
 						pd->system->logToConsole("Attribute start: %s", x.attr);
