@@ -36,5 +36,8 @@ ULIBDIR =
 # List all user libraries here
 ULIBS =
 
-include $(SDK)/C_API/buildsupport/common.mk
+# Enable AddressSanitizer
+CFLAGS += -fsanitize=address -g -O1
+LDFLAGS += -fsanitize=address
 
+include $(SDK)/C_API/buildsupport/common.mk

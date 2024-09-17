@@ -574,45 +574,33 @@ function addBooksFromFolder(folderPath)
 		end
 	end
 
-	-- Let's find some epubs boiii
+	-- Filter files to only include those that end with .txt
 	for i = #files, 1, -1 do
-		if sub(files[i], #files[i] - 4) == ".epub" then
-			print("Found epub: '" .. files[i] .. "'")
-			-- Unzip the epub
+		if sub(files[i], #files[i] - 3) == ".txt" then
+			-- It's a book
 			local path = folderPath .. files[i]
-			local name = sub(files[i], 1, #files[i] - 5)
+			print("Found book: '" .. path .. "'")
+			local name = sub(files[i], 1, #files[i] - 4)
 			local folderKey = folderPath
-			-- local unzipped = playdate.file.unzip("books/" .. path)
+			if folderKey == "" then
+				folderKey = "root"
+			end
+			-- Remove trailing slash
+			if sub(folderKey, #folderKey) == "/" then
+				folderKey = sub(folderKey, 1, #folderKey - 1)
+			end
+			local book = {
+				path = path,
+				name = name,
+				folder = folderKey,
+			}
+			insert(books, book)
 		end
 	end
-
-	-- -- Filter files to only include those that end with .txt
-	-- for i = #files, 1, -1 do
-	-- 	if sub(files[i], #files[i] - 3) == ".txt" then
-	-- 		-- It's a book
-	-- 		local path = folderPath .. files[i]
-	-- 		print("Found book: '" .. path .. "'")
-	-- 		local name = sub(files[i], 1, #files[i] - 4)
-	-- 		local folderKey = folderPath
-	-- 		if folderKey == "" then
-	-- 			folderKey = "root"
-	-- 		end
-	-- 		-- Remove trailing slash
-	-- 		if sub(folderKey, #folderKey) == "/" then
-	-- 			folderKey = sub(folderKey, 1, #folderKey - 1)
-	-- 		end
-	-- 		local book = {
-	-- 			path = path,
-	-- 			name = name,
-	-- 			folder = folderKey,
-	-- 		}
-	-- 		insert(books, book)
-	-- 	end
-	-- end
-	-- -- Sort alphabetically to ensure deterministic order
-	-- table.sort(books, function (a, b)
-	-- 	return a.name > b.name
-	-- end)
+	-- Sort alphabetically to ensure deterministic order
+	table.sort(books, function (a, b)
+		return a.name > b.name
+	end)
 	return books
 end
 

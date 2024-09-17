@@ -6,6 +6,16 @@
 	},
 	"C_Cpp.formatting": "vcFormat",
 	"files.associations": {
-	  "*.h": "c"
+		"*.json.liquid": "json",
+		"*.yaml.liquid": "yaml",
+		"*.md.liquid": "markdown",
+		"*.js.liquid": "liquid-javascript",
+		"*.css.liquid": "liquid-css",
+		"*.scss.liquid": "liquid-scss",
+		"*.const": "swift",
+		"*.h": "c",
+		"locale": "c",
+		"variant": "c",
+		"ostream": "c"
 	}
   }
