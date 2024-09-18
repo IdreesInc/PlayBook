@@ -273,7 +273,7 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 		int parseCode = yxml_parse(&x, opfContents[i]);
 		while (parseCode > 0) {
 			pd->system->logToConsole("Parse code: %d", parseCode);
-			// switch (parseCode) {
+			switch (parseCode) {
 			// case YXML_ELEMSTART:
 			// 	pd->system->logToConsole("Element start: %s", x.elem);
 			// 	if (strcmp(x.elem, "manifest") == 0) {
@@ -289,68 +289,68 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 			// 	}
 			// 	elementStackTop++;
 			// 	break;
-			// case YXML_ELEMEND:
-			// 	// Cannot use x.elem to determine closing element: https://code.blicky.net/yorhel/yxml/issues/7
-			// 	if (elementStackTop == 0) {
-			// 		pd->system->logToConsole("ERROR: Element stack is empty and yet pop was attempted");
-			// 	} else {
-			// 		elementStackTop--;
-			// 		if (elementStack[elementStackTop] == MANIFEST_ITEM) {
-			// 			// Add the current manifest item to the list
-			// 			manifestItems[manifestItemCount] = currentManifestItem;
-			// 			manifestItemCount++;
-			// 		} else if (elementStack[elementStackTop] == SPINE_ITEM) {
-			// 			// Add the current spine item to the list
-			// 			strcpy(spineItems[spineItemCount], currentSpineIdref);
-			// 			spineItemCount++;
-			// 		}
-			// 		const char* elementNameStr = (elementStack[elementStackTop] == MANIFEST) ? "MANIFEST" :
-			// 									(elementStack[elementStackTop] == MANIFEST_ITEM) ? "MANIFEST_ITEM" : "UNKNOWN";
-			// 		pd->system->logToConsole("Element end: %s", elementNameStr);
-			// 	}
-			// 	break;
-			// case YXML_ATTRSTART:
-			// 	pd->system->logToConsole("Attribute start: %s", x.attr);
-			// 	break;
-			// case YXML_ATTREND:
-			// 	pd->system->logToConsole("Attribute end: %s", x.attr);
-			// 	// Print the attribute value
-			// 	pd->system->logToConsole("Attribute value: %s", currentAttributeValue);
-			// 	if (withinManifest(elementStack, elementStackTop)) {
-			// 		if (strcmp(x.attr, "id") == 0) {
-			// 			strcpy(currentManifestItem.id, currentAttributeValue);
-			// 		} else if (strcmp(x.attr, "href") == 0) {
-			// 			strcpy(currentManifestItem.href, currentAttributeValue);
-			// 		}
-			// 	} else if (withinSpine(elementStack, elementStackTop)) {
-			// 		if (strcmp(x.attr, "idref") == 0) {
-			// 			strcpy(currentSpineIdref, currentAttributeValue);
-			// 		}
-			// 	}
-			// 	// Clear the current attribute value
-			// 	free(currentAttributeValue);
-			// 	currentAttributeValue = NULL;
-			// 	break;
-			// case YXML_ATTRVAL:
-			// 	// pd->system->logToConsole("Attribute value part: %s", x.data);
-			// 	if (currentAttributeValue == NULL) {
-			// 		currentAttributeValue = malloc(strlen(x.data) + 1);
-			// 		strcpy(currentAttributeValue, x.data);
-			// 	} else {
-			// 		char *newAttributeValue = realloc(currentAttributeValue, strlen(currentAttributeValue) + strlen(x.data) + 1);
-			// 		if (newAttributeValue == NULL) {
-			// 			pd->system->logToConsole("Memory allocation failed");
-			// 		}
-			// 		strcat(newAttributeValue, x.data);
-			// 		currentAttributeValue = newAttributeValue;	
-			// 	}
-			// 	break;
-			// case YXML_CONTENT:
-			// 	// pd->system->logToConsole("Content: %s", x.data);
-			// 	break;
-			// default:
-			// 	break;
-			// }
+			case YXML_ELEMEND:
+				// Cannot use x.elem to determine closing element: https://code.blicky.net/yorhel/yxml/issues/7
+				if (elementStackTop == 0) {
+					pd->system->logToConsole("ERROR: Element stack is empty and yet pop was attempted");
+				} else {
+					elementStackTop--;
+					if (elementStack[elementStackTop] == MANIFEST_ITEM) {
+						// Add the current manifest item to the list
+						manifestItems[manifestItemCount] = currentManifestItem;
+						manifestItemCount++;
+					} else if (elementStack[elementStackTop] == SPINE_ITEM) {
+						// Add the current spine item to the list
+						strcpy(spineItems[spineItemCount], currentSpineIdref);
+						spineItemCount++;
+					}
+					const char* elementNameStr = (elementStack[elementStackTop] == MANIFEST) ? "MANIFEST" :
+												(elementStack[elementStackTop] == MANIFEST_ITEM) ? "MANIFEST_ITEM" : "UNKNOWN";
+					pd->system->logToConsole("Element end: %s", elementNameStr);
+				}
+				break;
+			case YXML_ATTRSTART:
+				pd->system->logToConsole("Attribute start: %s", x.attr);
+				break;
+			case YXML_ATTREND:
+				pd->system->logToConsole("Attribute end: %s", x.attr);
+				// Print the attribute value
+				pd->system->logToConsole("Attribute value: %s", currentAttributeValue);
+				if (withinManifest(elementStack, elementStackTop)) {
+					if (strcmp(x.attr, "id") == 0) {
+						strcpy(currentManifestItem.id, currentAttributeValue);
+					} else if (strcmp(x.attr, "href") == 0) {
+						strcpy(currentManifestItem.href, currentAttributeValue);
+					}
+				} else if (withinSpine(elementStack, elementStackTop)) {
+					if (strcmp(x.attr, "idref") == 0) {
+						strcpy(currentSpineIdref, currentAttributeValue);
+					}
+				}
+				// Clear the current attribute value
+				free(currentAttributeValue);
+				currentAttributeValue = NULL;
+				break;
+			case YXML_ATTRVAL:
+				// pd->system->logToConsole("Attribute value part: %s", x.data);
+				if (currentAttributeValue == NULL) {
+					currentAttributeValue = malloc(strlen(x.data) + 1);
+					strcpy(currentAttributeValue, x.data);
+				} else {
+					char *newAttributeValue = realloc(currentAttributeValue, strlen(currentAttributeValue) + strlen(x.data) + 1);
+					if (newAttributeValue == NULL) {
+						pd->system->logToConsole("Memory allocation failed");
+					}
+					strcat(newAttributeValue, x.data);
+					currentAttributeValue = newAttributeValue;	
+				}
+				break;
+			case YXML_CONTENT:
+				// pd->system->logToConsole("Content: %s", x.data);
+				break;
+			default:
+				break;
+			}
 			parseCode = yxml_parse(&x, 0);
 		}
 	}
