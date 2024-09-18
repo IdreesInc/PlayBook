@@ -272,23 +272,23 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	for (int i = 0; i < fileSize; i++) {
 		int parseCode = yxml_parse(&x, opfContents[i]);
 		while (parseCode > 0) {
-			pd->system->logToConsole("Parse code: %d", parseCode);
+			// pd->system->logToConsole("Parse code: %d", parseCode);
 			switch (parseCode) {
-			// case YXML_ELEMSTART:
-			// 	pd->system->logToConsole("Element start: %s", x.elem);
-			// 	if (strcmp(x.elem, "manifest") == 0) {
-			// 		elementStack[elementStackTop] = MANIFEST;
-			// 	} else if (strcmp(x.elem, "item") == 0 && withinManifest(elementStack, elementStackTop)) {
-			// 		elementStack[elementStackTop] = MANIFEST_ITEM;
-			// 	} else if (strcmp(x.elem, "spine") == 0) {
-			// 		elementStack[elementStackTop] = SPINE;
-			// 	} else if (strcmp(x.elem, "itemref") == 0 && withinSpine(elementStack, elementStackTop)) {
-			// 		elementStack[elementStackTop] = SPINE_ITEM;
-			// 	} else {
-			// 		elementStack[elementStackTop] = UNKNOWN;
-			// 	}
-			// 	elementStackTop++;
-			// 	break;
+			case YXML_ELEMSTART:
+				pd->system->logToConsole("Element start: %s", x.elem);
+				if (strcmp(x.elem, "manifest") == 0) {
+					elementStack[elementStackTop] = MANIFEST;
+				} else if (strcmp(x.elem, "item") == 0 && withinManifest(elementStack, elementStackTop)) {
+					elementStack[elementStackTop] = MANIFEST_ITEM;
+				} else if (strcmp(x.elem, "spine") == 0) {
+					elementStack[elementStackTop] = SPINE;
+				} else if (strcmp(x.elem, "itemref") == 0 && withinSpine(elementStack, elementStackTop)) {
+					elementStack[elementStackTop] = SPINE_ITEM;
+				} else {
+					elementStack[elementStackTop] = UNKNOWN;
+				}
+				elementStackTop++;
+				break;
 			case YXML_ELEMEND:
 				// Cannot use x.elem to determine closing element: https://code.blicky.net/yorhel/yxml/issues/7
 				if (elementStackTop == 0) {
@@ -299,10 +299,12 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 						// Add the current manifest item to the list
 						manifestItems[manifestItemCount] = currentManifestItem;
 						manifestItemCount++;
+						pd->system->logToConsole("Manifest item: id=%s, href=%s", currentManifestItem.id, currentManifestItem.href);
 					} else if (elementStack[elementStackTop] == SPINE_ITEM) {
 						// Add the current spine item to the list
-						strcpy(spineItems[spineItemCount], currentSpineIdref);
+						// strcpy(spineItems[spineItemCount], currentSpineIdref);
 						spineItemCount++;
+						pd->system->logToConsole("Spine item: idref=%s", currentSpineIdref);
 					}
 					const char* elementNameStr = (elementStack[elementStackTop] == MANIFEST) ? "MANIFEST" :
 												(elementStack[elementStackTop] == MANIFEST_ITEM) ? "MANIFEST_ITEM" : "UNKNOWN";
@@ -356,23 +358,23 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	}
 	free(currentAttributeValue);
 	debugLog("Done parsing XML file");
-	// Print every manifest item
-	for (int i = 0; i < manifestItemCount; i++) {
-		pd->system->logToConsole("Manifest item %d: id=%s, href=%s", i, manifestItems[i].id, manifestItems[i].href);
-	}
-	// Print every spine item
-	for (int i = 0; i < spineItemCount; i++) {
-		pd->system->logToConsole("Spine item %d: idref=%s", i, spineItems[i]);
-	}
+	// // Print every manifest item
+	// for (int i = 0; i < manifestItemCount; i++) {
+	// 	pd->system->logToConsole("Manifest item %d: id=%s, href=%s", i, manifestItems[i].id, manifestItems[i].href);
+	// }
+	// // Print every spine item
+	// for (int i = 0; i < spineItemCount; i++) {
+	// 	pd->system->logToConsole("Spine item %d: idref=%s", i, spineItems[i]);
+	// }
 	// Create an array of content paths in order by linking the manifest items to the spine items
 	char **contentPaths = malloc(spineItemCount * sizeof(char *));
 	*contentPathCount = 0;
 	for (int i = 0; i < spineItemCount; i++) {
 		for (int j = 0; j < manifestItemCount; j++) {
 			if (strcmp(spineItems[i], manifestItems[j].id) == 0) {
-				contentPaths[*contentPathCount] = malloc(strlen(manifestItems[j].href) + 1);
-				strcpy(contentPaths[*contentPathCount], manifestItems[j].href);
-				(*contentPathCount)++;
+				// contentPaths[*contentPathCount] = malloc(strlen(manifestItems[j].href) + 1);
+				// strcpy(contentPaths[*contentPathCount], manifestItems[j].href);
+				// (*contentPathCount)++;
 				break;
 			}
 		}
