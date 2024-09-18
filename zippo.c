@@ -215,12 +215,6 @@ static debugLog(const char *message) {
 	}
 }
 
-typedef struct
-{
-	char id[256];
-	char href[256];
-} ManifestItem;
-
 // Make an enum of relevant element names including MANIFEST and MANIFEST_ITEM
 typedef enum
 {
@@ -257,12 +251,14 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	ElementName elementStack[1000] = {UNKNOWN};
 	int elementStackTop = 0;
 
-	// Store items declared in the manifest for later lookup
-	ManifestItem manifestItems[1000];
+	// Store manifest items in a dynamically allocated array
+    char *manifestIds[100];
+	char *manifestHrefs[100];
 	int manifestItemCount = 0;
-	ManifestItem currentManifestItem;
+	char currentManifestId[256];
+	char currentManifestHref[256];
 	// Store spine items as an array of dynamically allocated strings
-	char *spineItems[500];
+	char *spineItems[100];
 	int spineItemCount = 0;
 	char currentSpineIdref[256];
 	// Store the current attribute value
@@ -297,9 +293,12 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 					elementStackTop--;
 					if (elementStack[elementStackTop] == MANIFEST_ITEM) {
 						// Add the current manifest item to the list
-						manifestItems[manifestItemCount] = currentManifestItem;
+						manifestIds[manifestItemCount] = malloc(strlen(currentManifestId) + 1);
+						strcpy(manifestIds[manifestItemCount], currentManifestId);
+						manifestHrefs[manifestItemCount] = malloc(strlen(currentManifestHref) + 1);
+						strcpy(manifestHrefs[manifestItemCount], currentManifestHref);
 						manifestItemCount++;
-						pd->system->logToConsole("Manifest item: id=%s, href=%s", currentManifestItem.id, currentManifestItem.href);
+						pd->system->logToConsole("Manifest item: id=%s, href=%s", currentManifestId, currentManifestHref);
 					} else if (elementStack[elementStackTop] == SPINE_ITEM) {
 						// Add the current spine item to the list
 						spineItems[spineItemCount] = malloc(strlen(currentSpineIdref) + 1);
@@ -321,9 +320,9 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 				pd->system->logToConsole("Attribute value: %s", currentAttributeValue);
 				if (withinManifest(elementStack, elementStackTop)) {
 					if (strcmp(x.attr, "id") == 0) {
-						strcpy(currentManifestItem.id, currentAttributeValue);
+						strcpy(currentManifestId, currentAttributeValue);
 					} else if (strcmp(x.attr, "href") == 0) {
-						strcpy(currentManifestItem.href, currentAttributeValue);
+						strcpy(currentManifestHref, currentAttributeValue);
 					}
 				} else if (withinSpine(elementStack, elementStackTop)) {
 					if (strcmp(x.attr, "idref") == 0) {
@@ -359,30 +358,30 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	}
 	free(currentAttributeValue);
 	debugLog("Done parsing XML file");
-	// // Print every manifest item
-	// for (int i = 0; i < manifestItemCount; i++) {
-	// 	pd->system->logToConsole("Manifest item %d: id=%s, href=%s", i, manifestItems[i].id, manifestItems[i].href);
-	// }
+	// Print every manifest item
+	for (int i = 0; i < manifestItemCount; i++) {
+		pd->system->logToConsole("Manifest item %d: id=%s, href=%s", i, manifestIds[i], manifestHrefs[i]);
+	}
 	// Print every spine item
 	for (int i = 0; i < spineItemCount; i++) {
 		pd->system->logToConsole("Spine item %d: idref=%s", i, spineItems[i]);
 	}
 	// Create an array of content paths in order by linking the manifest items to the spine items
-	// char **contentPaths = malloc(spineItemCount * sizeof(char *));
-	// *contentPathCount = 0;
-	// for (int i = 0; i < spineItemCount; i++) {
-	// 	for (int j = 0; j < manifestItemCount; j++) {
-	// 		if (strcmp(spineItems[i], manifestItems[j].id) == 0) {
-	// 			// contentPaths[*contentPathCount] = malloc(strlen(manifestItems[j].href) + 1);
-	// 			// strcpy(contentPaths[*contentPathCount], manifestItems[j].href);
-	// 			// (*contentPathCount)++;
-	// 			break;
-	// 		}
-	// 	}
-	// }
+	char **contentPaths = malloc(spineItemCount * sizeof(char *));
+	*contentPathCount = 0;
+	for (int i = 0; i < spineItemCount; i++) {
+		for (int j = 0; j < manifestItemCount; j++) {
+			if (strcmp(spineItems[i], manifestIds[j]) == 0) {
+				contentPaths[*contentPathCount] = malloc(strlen(manifestHrefs[j]) + 1);
+				strcpy(contentPaths[*contentPathCount], manifestHrefs[j]);
+				(*contentPathCount)++;
+				break;
+			}
+		}
+	}
 
 	pd->system->logToConsole("Parsed XML file");
-	return NULL;
+	return contentPaths;
 }
 
 static char* htmlToPlaintext(const char *html) {
