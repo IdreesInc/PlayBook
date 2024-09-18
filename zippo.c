@@ -261,8 +261,8 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	ManifestItem manifestItems[1000];
 	int manifestItemCount = 0;
 	ManifestItem currentManifestItem;
-	// Store spine items
-	char spineItems[1000][256];
+	// Store spine items as an array of dynamically allocated strings
+	char *spineItems[500];
 	int spineItemCount = 0;
 	char currentSpineIdref[256];
 	// Store the current attribute value
@@ -302,7 +302,8 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 						pd->system->logToConsole("Manifest item: id=%s, href=%s", currentManifestItem.id, currentManifestItem.href);
 					} else if (elementStack[elementStackTop] == SPINE_ITEM) {
 						// Add the current spine item to the list
-						// strcpy(spineItems[spineItemCount], currentSpineIdref);
+						spineItems[spineItemCount] = malloc(strlen(currentSpineIdref) + 1);
+						strcpy(spineItems[spineItemCount], currentSpineIdref);
 						spineItemCount++;
 						pd->system->logToConsole("Spine item: idref=%s", currentSpineIdref);
 					}
@@ -362,26 +363,26 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	// for (int i = 0; i < manifestItemCount; i++) {
 	// 	pd->system->logToConsole("Manifest item %d: id=%s, href=%s", i, manifestItems[i].id, manifestItems[i].href);
 	// }
-	// // Print every spine item
-	// for (int i = 0; i < spineItemCount; i++) {
-	// 	pd->system->logToConsole("Spine item %d: idref=%s", i, spineItems[i]);
-	// }
-	// Create an array of content paths in order by linking the manifest items to the spine items
-	char **contentPaths = malloc(spineItemCount * sizeof(char *));
-	*contentPathCount = 0;
+	// Print every spine item
 	for (int i = 0; i < spineItemCount; i++) {
-		for (int j = 0; j < manifestItemCount; j++) {
-			if (strcmp(spineItems[i], manifestItems[j].id) == 0) {
-				// contentPaths[*contentPathCount] = malloc(strlen(manifestItems[j].href) + 1);
-				// strcpy(contentPaths[*contentPathCount], manifestItems[j].href);
-				// (*contentPathCount)++;
-				break;
-			}
-		}
+		pd->system->logToConsole("Spine item %d: idref=%s", i, spineItems[i]);
 	}
+	// Create an array of content paths in order by linking the manifest items to the spine items
+	// char **contentPaths = malloc(spineItemCount * sizeof(char *));
+	// *contentPathCount = 0;
+	// for (int i = 0; i < spineItemCount; i++) {
+	// 	for (int j = 0; j < manifestItemCount; j++) {
+	// 		if (strcmp(spineItems[i], manifestItems[j].id) == 0) {
+	// 			// contentPaths[*contentPathCount] = malloc(strlen(manifestItems[j].href) + 1);
+	// 			// strcpy(contentPaths[*contentPathCount], manifestItems[j].href);
+	// 			// (*contentPathCount)++;
+	// 			break;
+	// 		}
+	// 	}
+	// }
 
 	pd->system->logToConsole("Parsed XML file");
-	return contentPaths;
+	return NULL;
 }
 
 static char* htmlToPlaintext(const char *html) {
