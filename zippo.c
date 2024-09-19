@@ -203,7 +203,7 @@ int32_t listFiles(void) {
 	return 0;
 }
 
-static debugLog(const char *message) {
+static void debugLog(const char *message) {
 	pd->system->logToConsole(message);
 	SDFile* file = pd->file->open("log.txt", kFileAppend);
 	if (file) {
@@ -384,8 +384,114 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	return contentPaths;
 }
 
-static char* htmlToPlaintext(const char *html) {
-	int in_tag = 0;
+// Constant containing html entities and their corresponding characters
+static const char *htmlEntities[] = {
+	"&amp;", "&",
+	"&lt;", "<",
+	"&gt;", ">",
+	"&quot;", "\"",
+	"&apos;", "'",
+	"&nbsp;", " ",
+	"&iexcl;", "¡",
+	"&cent;", "¢",
+	"&pound;", "£",
+	"&curren;", "¤",
+	"&yen;", "¥",
+	"&brvbar;", "¦",
+	"&sect;", "§",
+	"&uml;", "¨",
+	"&copy;", "©",
+	"&ordf;", "ª",
+	"&laquo;", "«",
+	"&not;", "¬",
+	"&shy;", "­",
+	"&reg;", "®",
+	"&macr;", "¯",
+	"&deg;", "°",
+	"&plusmn;", "±",
+	"&sup2;", "²",
+	"&sup3;", "³",
+	"&acute;", "´",
+	"&micro;", "µ",
+	"&para;", "¶",
+	"&middot;", "·",
+	"&cedil;", "¸",
+	"&sup1;", "¹",
+	"&ordm;", "º",
+	"&raquo;", "»",
+	"&frac14;", "¼",
+	"&frac12;", "½",
+	"&frac34;", "¾",
+	"&iquest;", "¿",
+	"&Agrave;", "À",
+	"&Aacute;", "Á",
+	"&Acirc;", "Â",
+	"&Atilde;", "Ã",
+	"&Auml;", "Ä",
+	"&Aring;", "Å",
+	"&AElig;", "Æ",
+	"&Ccedil;", "Ç",
+	"&Egrave;", "È",
+	"&Eacute;", "É",
+	"&Ecirc;", "Ê",
+	"&Euml;", "Ë",
+	"&Igrave;", "Ì",
+	"&Iacute;", "Í",
+	"&Icirc;", "Î",
+	"&Iuml;", "Ï",
+	"&ETH;", "Ð",
+	"&Ntilde;", "Ñ",
+	"&Ograve;", "Ò",
+	"&Oacute;", "Ó",
+	"&Ocirc;", "Ô",
+	"&Otilde;", "Õ",
+	"&Ouml;", "Ö",
+	"&times;", "×",
+	"&Oslash;", "Ø",
+	"&Ugrave;", "Ù",
+	"&Uacute;", "Ú",
+	"&Ucirc;", "Û",
+	"&Uuml;", "Ü",
+	"&Yacute;", "Ý",
+	"&THORN;", "Þ",
+	"&szlig;", "ß",
+	"&agrave;", "à",
+	"&aacute;", "á",
+	"&acirc;", "â",
+	"&atilde;", "ã",
+	"&auml;", "ä",
+	"&aring;", "å",
+	"&aelig;", "æ",
+	"&ccedil;", "ç",
+	"&egrave;", "è",
+	"&eacute;", "é",
+	"&ecirc;", "ê",
+	"&euml;", "ë",
+	"&igrave;", "ì",
+	"&iacute;", "í",
+	"&icirc;", "î",
+	"&iuml;", "ï",
+	"&eth;", "ð",
+	"&ntilde;", "ñ",
+	"&ograve;", "ò",
+	"&oacute;", "ó",
+	"&ocirc;", "ô",
+	"&otilde;", "õ",
+	"&ouml;", "ö",
+	"&divide;", "÷",
+	"&oslash;", "ø",
+	"&ugrave;", "ù",
+	"&uacute;", "ú",
+	"&ucirc;", "û",
+	"&uuml;", "ü",
+	"&yacute;", "ý",
+	"&thorn;", "þ",
+	"&yuml;", "ÿ",
+	NULL, NULL
+};
+
+static char* htmlToPlaintext(const char *html, size_t fileSize) {
+	bool withinTag = false;
 	int index = 0;
 
 	// Allocate memory for the plaintext, give it a little extra since utf-8 characters can be up to 4 bytes long
@@ -395,30 +501,60 @@ static char* htmlToPlaintext(const char *html) {
 		return NULL; // Memory allocation failed
 	}
 
-	for (int i = 0; html[i] != '\0'; i++) {
+	for (int i = 0; i < fileSize; i++) {
 		if (html[i] == '<') {
-			in_tag = 1;
-		} else if (html[i] == '>') {
-			in_tag = 0;
-			// If the tag is a block-level element, add a newline character (as in the previous characters were like </p>, </h1>, etc.)
-			if (i > 2 && (html[i - 1] == 'p')) {
-				plaintext[index + 1] = '\n';
-				plaintext[index + 2] = '\n';
-				index += 2;
+			withinTag = true;
+			if (i + 3 < fileSize && html[i + 1] == '/') {
+				// Add an extra newline after headings
+				if (html[i + 2] == 'h') {
+					plaintext[index++] = ' ';
+					plaintext[index++] = '\n';
+				}
+			} else if (i + 3 < fileSize && (html[i + 1] == 'p' || html[i + 1] == 'h')) {
+				// Add a couple of newlines before block elements
+				plaintext[index++] = ' ';
+				plaintext[index++] = '\n';
+				plaintext[index++] = ' ';
+				plaintext[index++] = '\n';
 			}
-		} else if (html[i] == '\n') {
-			// Ignore newline characters
+		} else if (html[i] == '>') {
+			withinTag = false;
+		} else if (html[i] == '\n' && ((index == 0 || plaintext[index - 1] != '\n') || (index >= fileSize - 1 || html[i + 1] != '\n'))) {
+			// Skip newlines that are not adjacent to other newlines
 			continue;
 		} else if (html[i] == ' ' && (index == 0 || plaintext[index - 1] == ' ' || plaintext[index - 1] == '\n')) {
 			// Combine multiple spaces
 			continue;
-		} else if (!in_tag) {
+		} else if (!withinTag) {
+			if (html[i] == '&') {
+				// Determine if the character is an HTML entity
+				bool isEntity = false;
+				for (int j = 0; htmlEntities[j] != NULL; j += 2) {
+					if (strncmp(html + i, htmlEntities[j], strlen(htmlEntities[j])) == 0) {
+						plaintext[index++] = htmlEntities[j + 1][0];
+						i += strlen(htmlEntities[j]) - 1;
+						isEntity = true;
+						break;
+					}
+				}
+				if (isEntity) {
+					continue;
+				}
+			}
 			plaintext[index++] = html[i];
 		}
 	}
 
 	// Null-terminate the plaintext string
 	plaintext[index] = '\0';
+
+	// // pd->system->logToConsole(plaintext);
+	// Split and log each line to the console
+	char *line = strtok(plaintext, "\n");
+	while (line != NULL) {
+		pd->system->logToConsole(line);
+		line = strtok(NULL, "\n");
+	}
 
 	return plaintext;
 }
@@ -521,7 +657,7 @@ static int zippo_readEpub(lua_State* L) {
 			SDFile* file = pd->file->open("books/plaintext.txt", kFileAppend);
 			
 			// Read the content of each file
-			for (int i = 0; i < contentPathCount; i++) {
+			for (int i = 1; i < contentPathCount; i++) {
 				// Create a variable for the path that concats "OEBPS/" and the content path
 				char contentPath[256];
 				strcpy(contentPath, "OEBPS/");
@@ -556,9 +692,9 @@ static int zippo_readEpub(lua_State* L) {
 					fileContents[fileSize] = '\0';
 				}
 				// pd->system->logToConsole("File contents: %s", fileContents);
-				char *plaintext = htmlToPlaintext(fileContents);
+				char *plaintext = htmlToPlaintext(fileContents, fileSize);
 				if (file) {
-					pd->system->logToConsole(plaintext);
+					// pd->system->logToConsole(plaintext);
 					pd->file->write(file, plaintext, strlen(plaintext));
 				} else {
 					pd->system->logToConsole("Failed to open file for writing");
