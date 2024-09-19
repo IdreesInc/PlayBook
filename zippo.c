@@ -516,6 +516,10 @@ static int zippo_readEpub(lua_State* L) {
 			}
 			free(opfContents);
 
+			// Store plaintext in a file called "plaintext.txt"
+			pd->file->unlink("books/plaintext.txt", 0);
+			SDFile* file = pd->file->open("books/plaintext.txt", kFileAppend);
+			
 			// Read the content of each file
 			for (int i = 0; i < contentPathCount; i++) {
 				// Create a variable for the path that concats "OEBPS/" and the content path
@@ -553,12 +557,9 @@ static int zippo_readEpub(lua_State* L) {
 				}
 				// pd->system->logToConsole("File contents: %s", fileContents);
 				char *plaintext = htmlToPlaintext(fileContents);
-				// Store plaintext in a file called "plaintext.txt"
-				SDFile* file = pd->file->open("plaintext.txt", kFileAppend);
 				if (file) {
 					pd->system->logToConsole(plaintext);
 					pd->file->write(file, plaintext, strlen(plaintext));
-					pd->file->close(file);
 				} else {
 					pd->system->logToConsole("Failed to open file for writing");
 				}
@@ -571,6 +572,7 @@ static int zippo_readEpub(lua_State* L) {
 
 				unzCloseCurrentFile(zHandle);
 			}
+			pd->file->close(file);
 		}
 
 		// Read through every file

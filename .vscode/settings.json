@@ -16,6 +16,7 @@
 		"*.h": "c",
 		"locale": "c",
 		"variant": "c",
-		"ostream": "c"
+		"ostream": "c",
+		"__config": "c"
 	}
   }
