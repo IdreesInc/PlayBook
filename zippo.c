@@ -549,12 +549,14 @@ static char* htmlToPlaintext(const char *html, size_t fileSize) {
 	plaintext[index] = '\0';
 
 	// // pd->system->logToConsole(plaintext);
-	// Split and log each line to the console
-	char *line = strtok(plaintext, "\n");
-	while (line != NULL) {
-		pd->system->logToConsole(line);
-		line = strtok(NULL, "\n");
-	}
+	// // Split and log each line to the console
+	// // When uncommented, will delete original plaintext
+	// char *line = strtok(plaintext, "\n");
+	// while (line != NULL) {
+	// 	// pd->system->logToConsole(line);
+	// 	line = strtok(NULL, "\n");
+	// }
+	// return "debuggo";
 
 	return plaintext;
 }
@@ -694,6 +696,7 @@ static int zippo_readEpub(lua_State* L) {
 				// pd->system->logToConsole("File contents: %s", fileContents);
 				char *plaintext = htmlToPlaintext(fileContents, fileSize);
 				if (file) {
+					pd->system->logToConsole("Writing to file with length %d", strlen(plaintext));
 					// pd->system->logToConsole(plaintext);
 					pd->file->write(file, plaintext, strlen(plaintext));
 				} else {
@@ -710,10 +713,6 @@ static int zippo_readEpub(lua_State* L) {
 			}
 			pd->file->close(file);
 		}
-
-		// Read through every file
-
-		pd->system->logToConsole("Total bytes read = %d (reading 256 bytes at a time)\n", i);
 		rc = unzCloseCurrentFile(zHandle);
 		unzClose(zHandle);
 	}
