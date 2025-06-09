@@ -13,8 +13,6 @@ local ceil <const> = math.ceil
 local sub <const> = string.sub
 local insert <const> = table.insert
 
-zippo.readEpub("./moby.epub");
-
 -- Constants
 -- The maximum size of a file to read in bytes
 local MAX_FILE_SIZE <const> = 4 * 1024 * 1024
@@ -56,9 +54,13 @@ local FONTS <const> = {
 	},
 }
 local MANUAL_NAME <const> = "The PlayBook Manual.txt"
+-- The prefix for generated files from epubs
+local GEN_PREFIX <const> = "gen-"
 -- Scene names
-local LIBRARY = "LIBRARY"
-local READER = "READER"
+local LIBRARY <const> = "LIBRARY"
+local READER <const> = "READER"
+
+-- zippo.expandEpub("./books/moby.epub", "./books/plaintext.txt")
 
 -- Variables
 
@@ -80,7 +82,7 @@ local DEFAULT_BOOKS <const> = {
 	"Northanger Abbey.txt",
 	"Pride and Prejudice.txt",
 	"Frankenstein.txt",
-	"The Great Gatsby.txt",
+	"The Great Gatsby.txt"
 }
 
 -- Shared
@@ -456,6 +458,19 @@ function loadBook(selectedBook)
 	-- Reset variables
 	text = nil
 
+	-- Determine if book is txt or epub
+	local isEpub = sub(selectedBook.path, #selectedBook.path - 4) == ".epub"
+	if isEpub then
+		print("Loading epub: " .. selectedBook.path)
+		-- Extract filename
+		local filename = sub(selectedBook.path, 1, #selectedBook.path - 5)
+		print("Filename: " .. filename)
+		-- Convert the epub into a txt file
+		zippo.expandEpub("./books/" .. selectedBook.path, "./books/" .. GEN_PREFIX .. filename .. ".txt")
+		-- Change the selected book to the extracted txt file
+		selectedBook.path = GEN_PREFIX .. filename .. ".txt"
+	end
+
 	-- Set the current book
 	currentBookKey = selectedBook.name
 	loadCurrentBookSettings()
@@ -576,11 +591,31 @@ function addBooksFromFolder(folderPath)
 
 	-- Filter files to only include those that end with .txt
 	for i = #files, 1, -1 do
-		if sub(files[i], #files[i] - 3) == ".txt" then
+		if sub(files[i], #files[i] - 3) == ".txt" and sub(files[i], 1, #GEN_PREFIX) ~= GEN_PREFIX then
 			-- It's a book
 			local path = folderPath .. files[i]
 			print("Found book: '" .. path .. "'")
 			local name = sub(files[i], 1, #files[i] - 4)
+			local folderKey = folderPath
+			if folderKey == "" then
+				folderKey = "root"
+			end
+			-- Remove trailing slash
+			if sub(folderKey, #folderKey) == "/" then
+				folderKey = sub(folderKey, 1, #folderKey - 1)
+			end
+			local book = {
+				path = path,
+				name = name,
+				folder = folderKey,
+			}
+			insert(books, book)
+		elseif sub(files[i], #files[i] - 4) == ".epub" then
+			-- Log it
+			print("Found epub: '" .. files[i] .. "'")
+			local path = folderPath .. files[i]
+			print("Found book: '" .. path .. "'")
+			local name = sub(files[i], 1, #files[i] - 5)
 			local folderKey = folderPath
 			if folderKey == "" then
 				folderKey = "root"

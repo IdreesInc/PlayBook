@@ -151,18 +151,24 @@ static int zippo_getavg(lua_State* L)
 	return 1;
 }
 
+static void listFilesCallback(const char *name, void *userdata) {
+    pd->system->logToConsole("File: %s", name);
+}
+
 void *myOpen(const char *filename, int32_t *size)
 {
-    pd->system->logToConsole("Attempting to open");
+    pd->system->logToConsole("Attempting to open file: %s", filename);
     size_t filesize;
-    SDFile *myfile = pd->file->open(filename, 1);
+    SDFile *myfile = pd->file->open(filename, kFileReadData);
     if (myfile)
     {
         pd->file->seek(myfile, 0, SEEK_END);
         filesize = pd->file->tell(myfile);
         pd->file->seek(myfile, 0, SEEK_SET);
         *size = (int32_t)filesize;
-    }
+    } else {
+		pd->system->logToConsole("Failed to open file: %s", filename);
+	}
     pd->system->logToConsole("myfile handle: %d", myfile);
     return (void *)myfile;
 }
@@ -193,10 +199,6 @@ int32_t mySeek(void *p, int32_t position, int iType)
     return pd->file->seek(f, position, iType);
 }
 
-static void listFilesCallback(const char *name, void *userdata) {
-    pd->system->logToConsole("File: %s", name);
-}
-
 int32_t listFiles(void) {
 	pd->system->logToConsole("Listing files...");
 	pd->file->listfiles(".", listFilesCallback, 0, 0);
@@ -222,7 +224,11 @@ typedef enum
 	MANIFEST,
 	MANIFEST_ITEM,
 	SPINE,
-	SPINE_ITEM
+	SPINE_ITEM,
+	NAVPOINT,
+	NAVLABEL,
+	NAVTEXT,
+	NAVCONTENT
 } ElementName;
 
 static bool stackContains(ElementName* stack, int top, ElementName element) {
@@ -242,8 +248,74 @@ static bool withinSpine(ElementName* stack, int top) {
 	return stackContains(stack, top, SPINE);
 }
 
-static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPathCount) {
-	debugLog("Alright, here we go");
+static char* getRootfile(char *containerContents, size_t fileSize) {
+	// Parse the XML file
+	yxml_t x;
+	yxml_init(&x, containerContents, fileSize);
+	
+	ElementName elementStack[1000] = {UNKNOWN};
+	int elementStackTop = 0;
+
+	// Store the rootfile path
+	char *rootfilePath = NULL;
+	// Store the current attribute value
+	char *currentAttributeValue = NULL;
+	bool inRootfileElement = false;
+	debugLog("Starting parse of XML file");
+	int count = 0;
+	for (int i = 0; i < fileSize; i++) {
+		int parseCode = yxml_parse(&x, containerContents[i]);
+		while (parseCode > 0 && rootfilePath == NULL) {
+			switch (parseCode) {
+			case YXML_ELEMSTART:
+				if (strcmp(x.elem, "rootfile") == 0) {
+					inRootfileElement = true;
+				}
+				break;
+			case YXML_ELEMEND:
+				if (inRootfileElement) {
+					inRootfileElement = false;
+				}
+				break;
+			case YXML_ATTREND:
+				if (inRootfileElement &&  strcmp(x.attr, "full-path") == 0) {
+					rootfilePath = malloc(strlen(currentAttributeValue) + 1);
+					strcpy(rootfilePath, currentAttributeValue);
+				}
+				currentAttributeValue = NULL;
+				break;
+			case YXML_ATTRVAL:
+				if (currentAttributeValue == NULL) {
+					currentAttributeValue = malloc(strlen(x.data) + 1);
+					strcpy(currentAttributeValue, x.data);
+				} else {
+					char *newAttributeValue = realloc(currentAttributeValue, strlen(currentAttributeValue) + strlen(x.data) + 1);
+					if (newAttributeValue == NULL) {
+						pd->system->logToConsole("Memory allocation failed");
+					}
+					strcat(newAttributeValue, x.data);
+					currentAttributeValue = newAttributeValue;
+				}
+				break;
+			default:
+				break;
+			}
+			parseCode = yxml_parse(&x, 0);
+		}
+	}
+	free(currentAttributeValue);
+	debugLog("Done parsing XML file");
+	return rootfilePath;
+}
+
+typedef struct {
+	/** The paths to each of the ebook's contents in order */	
+	char **contentPaths;
+	/** The path to the table of contents .ncx file */
+	char *tocPath;
+} ContentPaths;
+
+static ContentPaths getContentPaths(char *opfContents, size_t fileSize, int *contentPathCount) {
 	// Parse the XML file
 	yxml_t x;
 	yxml_init(&x, opfContents, fileSize);
@@ -263,6 +335,8 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	char currentSpineIdref[256];
 	// Store the current attribute value
 	char *currentAttributeValue = NULL;
+	char *tableOfContentsId = NULL;
+	char *tableOfContentsPath = NULL;
 	debugLog("Starting parse of XML file");
 	int count = 0;
 	for (int i = 0; i < fileSize; i++) {
@@ -271,7 +345,7 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 			// pd->system->logToConsole("Parse code: %d", parseCode);
 			switch (parseCode) {
 			case YXML_ELEMSTART:
-				pd->system->logToConsole("Element start: %s", x.elem);
+				// pd->system->logToConsole("Element start: %s", x.elem);
 				if (strcmp(x.elem, "manifest") == 0) {
 					elementStack[elementStackTop] = MANIFEST;
 				} else if (strcmp(x.elem, "item") == 0 && withinManifest(elementStack, elementStackTop)) {
@@ -298,26 +372,26 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 						manifestHrefs[manifestItemCount] = malloc(strlen(currentManifestHref) + 1);
 						strcpy(manifestHrefs[manifestItemCount], currentManifestHref);
 						manifestItemCount++;
-						pd->system->logToConsole("Manifest item: id=%s, href=%s", currentManifestId, currentManifestHref);
+						// pd->system->logToConsole("Manifest item: id=%s, href=%s", currentManifestId, currentManifestHref);
 					} else if (elementStack[elementStackTop] == SPINE_ITEM) {
 						// Add the current spine item to the list
 						spineItems[spineItemCount] = malloc(strlen(currentSpineIdref) + 1);
 						strcpy(spineItems[spineItemCount], currentSpineIdref);
 						spineItemCount++;
-						pd->system->logToConsole("Spine item: idref=%s", currentSpineIdref);
+						// pd->system->logToConsole("Spine item: idref=%s", currentSpineIdref);
 					}
 					const char* elementNameStr = (elementStack[elementStackTop] == MANIFEST) ? "MANIFEST" :
 												(elementStack[elementStackTop] == MANIFEST_ITEM) ? "MANIFEST_ITEM" : "UNKNOWN";
-					pd->system->logToConsole("Element end: %s", elementNameStr);
+					// pd->system->logToConsole("Element end: %s", elementNameStr);
 				}
 				break;
 			case YXML_ATTRSTART:
-				pd->system->logToConsole("Attribute start: %s", x.attr);
+				// pd->system->logToConsole("Attribute start: %s", x.attr);
 				break;
 			case YXML_ATTREND:
-				pd->system->logToConsole("Attribute end: %s", x.attr);
+				// pd->system->logToConsole("Attribute end: %s", x.attr);
 				// Print the attribute value
-				pd->system->logToConsole("Attribute value: %s", currentAttributeValue);
+				// pd->system->logToConsole("Attribute value: %s", currentAttributeValue);
 				if (withinManifest(elementStack, elementStackTop)) {
 					if (strcmp(x.attr, "id") == 0) {
 						strcpy(currentManifestId, currentAttributeValue);
@@ -328,6 +402,10 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 					if (strcmp(x.attr, "idref") == 0) {
 						strcpy(currentSpineIdref, currentAttributeValue);
 					}
+				}
+				if (strcmp(x.elem, "spine") == 0 && strcmp(x.attr, "toc") == 0) {
+					tableOfContentsId = malloc(strlen(currentAttributeValue) + 1);
+					strcpy(tableOfContentsId, currentAttributeValue);
 				}
 				// Clear the current attribute value
 				free(currentAttributeValue);
@@ -358,14 +436,14 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 	}
 	free(currentAttributeValue);
 	debugLog("Done parsing XML file");
-	// Print every manifest item
-	for (int i = 0; i < manifestItemCount; i++) {
-		pd->system->logToConsole("Manifest item %d: id=%s, href=%s", i, manifestIds[i], manifestHrefs[i]);
-	}
-	// Print every spine item
-	for (int i = 0; i < spineItemCount; i++) {
-		pd->system->logToConsole("Spine item %d: idref=%s", i, spineItems[i]);
-	}
+	// // Print every manifest item
+	// for (int i = 0; i < manifestItemCount; i++) {
+	// 	pd->system->logToConsole("Manifest item %d: id=%s, href=%s", i, manifestIds[i], manifestHrefs[i]);
+	// }
+	// // Print every spine item
+	// for (int i = 0; i < spineItemCount; i++) {
+	// 	pd->system->logToConsole("Spine item %d: idref=%s", i, spineItems[i]);
+	// }
 	// Create an array of content paths in order by linking the manifest items to the spine items
 	char **contentPaths = malloc(spineItemCount * sizeof(char *));
 	*contentPathCount = 0;
@@ -379,9 +457,136 @@ static char** getContentPaths(char *opfContents, size_t fileSize, int *contentPa
 			}
 		}
 	}
-
+	// Determine the path to the table of contents file
+	for (int i = 0; i < manifestItemCount; i++) {
+		if (strcmp(manifestIds[i], tableOfContentsId) == 0) {
+			tableOfContentsPath = malloc(strlen(manifestHrefs[i]) + 1);
+			strcpy(tableOfContentsPath, manifestHrefs[i]);
+			break;
+		}
+	}
 	pd->system->logToConsole("Parsed XML file");
-	return contentPaths;
+	ContentPaths paths;
+	paths.contentPaths = contentPaths;
+	paths.tocPath = tableOfContentsPath;
+	return paths;
+}
+
+typedef struct {
+	char *name;
+	char *path;
+} TableOfContentsItem;
+
+static bool withinNavPoint(ElementName* stack, int top) {
+	return stack[top - 1] == NAVPOINT;
+}
+
+static bool withinNavLabel(ElementName* stack, int top) {
+	return stackContains(stack, top, NAVLABEL);
+}
+
+static bool withinNavText(ElementName* stack, int top) {
+	return stackContains(stack, top, NAVTEXT);
+}
+
+static bool withinNavContent(ElementName* stack, int top) {
+	return stackContains(stack, top, NAVCONTENT);
+}
+
+static TableOfContentsItem* parseTableOfContents(char *tocContents, size_t fileSize, int *tocItemCount) {
+	// Parse the XML file
+	yxml_t x;
+	yxml_init(&x, tocContents, fileSize);
+	ElementName elementStack[1000] = {UNKNOWN};
+	int elementStackTop = 0;
+
+	TableOfContentsItem *tocItems = malloc(300 * sizeof(TableOfContentsItem));
+	*tocItemCount = 0;
+
+	char *currentAttributeValue = NULL;
+	char *currentNavLabelText = NULL;
+	char *currentNavPointPath = NULL;
+
+	debugLog("Starting parse of XML file");
+
+	for (int i = 0; i < fileSize; i++) {
+		int parseCode = yxml_parse(&x, tocContents[i]);
+		while (parseCode > 0) {
+			switch (parseCode) {
+				case YXML_ELEMSTART:
+					if (strcmp(x.elem, "navPoint") == 0 && !withinNavPoint(elementStack, elementStackTop)) {
+						// Don't allow nested navPoints for now
+						elementStack[elementStackTop] = NAVPOINT;
+					} else if (strcmp(x.elem, "navLabel") == 0 && withinNavPoint(elementStack, elementStackTop)) {
+						elementStack[elementStackTop] = NAVLABEL;
+					} else if (strcmp(x.elem, "text") == 0 && withinNavLabel(elementStack, elementStackTop)) {
+						elementStack[elementStackTop] = NAVTEXT;
+					} else if (strcmp(x.elem, "content") == 0 && withinNavPoint(elementStack, elementStackTop)) {
+						elementStack[elementStackTop] = NAVCONTENT;
+					} else {
+						elementStack[elementStackTop] = UNKNOWN;
+					}
+					elementStackTop++;
+					break;
+				case YXML_ELEMEND:
+					if (elementStackTop == 0) {
+						pd->system->logToConsole("ERROR: Element stack is empty and yet pop was attempted");
+					} else {
+						elementStackTop--;
+						if (elementStack[elementStackTop] == NAVPOINT) {
+							tocItems[*tocItemCount].name = currentNavLabelText;
+							tocItems[*tocItemCount].path = currentNavPointPath;
+							(*tocItemCount)++;
+							currentNavLabelText = NULL;
+							currentNavPointPath = NULL;
+						}
+					}
+					break;
+				case YXML_ATTREND:
+					if (withinNavContent(elementStack, elementStackTop) && strcmp(x.attr, "src") == 0) {
+						currentNavPointPath = malloc(strlen(currentAttributeValue) + 1);
+						strcpy(currentNavPointPath, currentAttributeValue);
+					}
+					free(currentAttributeValue);
+					currentAttributeValue = NULL;
+					break;
+				case YXML_ATTRVAL:
+					if (currentAttributeValue == NULL) {
+						currentAttributeValue = malloc(strlen(x.data) + 1);
+						strcpy(currentAttributeValue, x.data);
+					} else {
+						char *newAttributeValue = realloc(currentAttributeValue, strlen(currentAttributeValue) + strlen(x.data) + 1);
+						if (newAttributeValue == NULL) {
+							pd->system->logToConsole("Memory allocation failed");
+						}
+						strcat(newAttributeValue, x.data);
+						currentAttributeValue = newAttributeValue;
+					}
+					break;
+				case YXML_CONTENT:
+					if (withinNavText(elementStack, elementStackTop)) {
+						if (currentNavLabelText == NULL) {
+							currentNavLabelText = malloc(strlen(x.data) + 1);
+							strcpy(currentNavLabelText, x.data);
+						} else {
+							char *newNavLabelText = realloc(currentNavLabelText, strlen(currentNavLabelText) + strlen(x.data) + 1);
+							if (newNavLabelText == NULL) {
+								pd->system->logToConsole("Memory allocation failed");
+							}
+							strcat(newNavLabelText, x.data);
+							currentNavLabelText = newNavLabelText;
+						}
+					}
+					break;
+				default:
+					break;
+			}
+			parseCode = yxml_parse(&x, 0);
+		}
+	}
+	free(currentAttributeValue);
+	debugLog("Done parsing XML file");
+	return tocItems;
 }
 
 // Constant containing html entities and their corresponding characters
@@ -561,161 +766,186 @@ static char* htmlToPlaintext(const char *html, size_t fileSize) {
 	return plaintext;
 }
 
-static int zippo_readEpub(lua_State* L) {
+static char* readFileFromZip(unzFile zHandle, const char* filePath) {
+	int rc = unzLocateFile(zHandle, filePath, 2);
+	if (rc != UNZ_OK) {
+		pd->system->logToConsole("File %s not found within archive", filePath);
+		return NULL;
+	}
+	rc = unzOpenCurrentFile(zHandle);
+	if (rc != UNZ_OK) {
+		pd->system->logToConsole("Error opening file %s", filePath);
+		return NULL;
+	}
+
+	char fileBuffer[256];
+	int bytesRead;
+	char *fileContents = NULL;
+	size_t fileSize = 0;
+	while ((bytesRead = unzReadCurrentFile(zHandle, fileBuffer, sizeof(fileBuffer))) > 0) {
+		char *newBuffer = realloc(fileContents, fileSize + bytesRead + 1);
+		if (newBuffer == NULL) {
+			pd->system->logToConsole("Memory allocation failed\n");
+			free(fileContents);
+			return NULL;
+		}
+		fileContents = newBuffer;
+		memcpy(fileContents + fileSize, fileBuffer, bytesRead);
+		fileSize += bytesRead;
+		fileContents[fileSize] = '\0';
+	}
+
+	if (bytesRead < 0) {
+		pd->system->logToConsole("Error reading file %s", filePath);
+		free(fileContents);
+		return NULL;
+	}
+
+	unzCloseCurrentFile(zHandle);
+	return fileContents;
+}
+
+static int zippo_expandEpub(lua_State* L) {
 	debugLog("Reading EPUB");
 	const char *zipfilename = pd->lua->getArgString(1);
-
-	// Create a variable to store the contents of the file
-	char fileContents[10000];
+	const char *outputFilename = pd->lua->getArgString(2);
 
 	listFiles();
-	pd->system->logToConsole("Reading stuff from %s", zipfilename);
+	pd->system->logToConsole("Unzipping %s", zipfilename);
 	int rc = 0;
 	ZIPFILE zpf;
 	unzFile zHandle = unzOpen(zipfilename, NULL, 0, &zpf, myOpen, myRead, mySeek, myClose);
 
 	if (zHandle == NULL) {
-		pd->system->logToConsole("Failed to open %s", zipfilename);
-	} else {
-		pd->system->logToConsole("We got a handle: %d", zHandle);
+		pd->system->logToConsole("Failed to unzip %s", zipfilename);
+		return 0;
 	}
 
 	char szComment[256];
 	rc = unzGetGlobalComment(zHandle, szComment, sizeof(szComment));
-	if (rc == UNZ_OK) {
-		pd->system->logToConsole("comment: %s", &szComment);
-	} else {
-		pd->system->logToConsole("bad comment %d", rc);
-	}
-
-	char *contentPath = "OEBPS/content.opf";
-	rc = unzLocateFile(zHandle, contentPath, 2);
-
 	if (rc != UNZ_OK) {
-		pd->system->logToConsole("File %s not found within archive", contentPath);
-		unzClose(zHandle);
-		//return -1;
-	} else {
-		pd->system->logToConsole("file found");
-		rc = unzOpenCurrentFile(zHandle); /* Try to open the file we want */
-		if (rc != UNZ_OK) {
-			pd->system->logToConsole("Error opening file = %d\n", rc);
-			unzClose(zHandle);
-			//return -1;
-		}
-		
-		pd->system->logToConsole("File located within archive.\n");
-		rc = 1;
-		int i = 0;
-
-		// Initialize a pointer to hold the file contents
-		char *opfContents = NULL;
-		size_t fileSize = 0;
-		size_t bufferSize = 256; // Initial buffer size
-		char szTemp[256];
-		int rc = 1; // Initial value to enter the loop
-
-		// Read until we reach the end of the file
-		while (rc > 0) {
-			rc = unzReadCurrentFile(zHandle, szTemp, sizeof(szTemp));
-			if (rc >= 0) {
-				if (rc > 0) {
-					// Reallocate memory to hold the new data
-					char *newBuffer = realloc(opfContents, fileSize + rc + 1); // +1 for null terminator
-					if (newBuffer == NULL) {
-						pd->system->logToConsole("Memory allocation failed\n");
-						free(opfContents); // Free the previously allocated memory
-						opfContents = NULL;
-						break;
-					}
-					
-					opfContents = newBuffer;
-					// Copy the read data into the new buffer space
-					memcpy(opfContents + fileSize, szTemp, rc);
-					fileSize += rc;
-					opfContents[fileSize] = '\0'; // Null-terminate the string
-				}
-			} else {
-				pd->system->logToConsole("Error reading from file\n");
-				free(opfContents); // Free allocated memory on error
-				opfContents = NULL;
-				break;
-			}
-		}
-
-		pd->system->logToConsole("Done reading file");
-
-		if (opfContents != NULL) {
-			int contentPathCount = 0;
-			char** contentPaths = getContentPaths(opfContents, fileSize, &contentPathCount);
-			// Print the content paths
-			for (int i = 0; i < contentPathCount; i++) {
-				pd->system->logToConsole("Content path %d: %s", i, contentPaths[i]);
-			}
-			free(opfContents);
-
-			// Store plaintext in a file called "plaintext.txt"
-			pd->file->unlink("books/plaintext.txt", 0);
-			SDFile* file = pd->file->open("books/plaintext.txt", kFileAppend);
-			
-			// Read the content of each file
-			for (int i = 1; i < contentPathCount; i++) {
-				// Create a variable for the path that concats "OEBPS/" and the content path
-				char contentPath[256];
-				strcpy(contentPath, "OEBPS/");
-				strcat(contentPath, contentPaths[i]);
-				pd->system->logToConsole("Reading file: %s", contentPath);
-				rc = unzLocateFile(zHandle, contentPath, 2);
-				if (rc != UNZ_OK) {
-					pd->system->logToConsole("File %s not found within archive", contentPath);
-					continue;
-				}
-				rc = unzOpenCurrentFile(zHandle);
-				if (rc != UNZ_OK) {
-					pd->system->logToConsole("Error opening file %s", contentPath);
-					continue;
-				}
-
-				char fileBuffer[256];
-				int bytesRead;
-				char *fileContents = NULL;
-				size_t fileSize = 0;
-				while ((bytesRead = unzReadCurrentFile(zHandle, fileBuffer, sizeof(fileBuffer))) > 0) {
-					char *newBuffer = realloc(fileContents, fileSize + bytesRead + 1);
-					if (newBuffer == NULL) {
-						pd->system->logToConsole("Memory allocation failed\n");
-						free(fileContents);
-						fileContents = NULL;
-						break;
-					}
-					fileContents = newBuffer;
-					memcpy(fileContents + fileSize, fileBuffer, bytesRead);
-					fileSize += bytesRead;
-					fileContents[fileSize] = '\0';
-				}
-				// pd->system->logToConsole("File contents: %s", fileContents);
-				char *plaintext = htmlToPlaintext(fileContents, fileSize);
-				if (file) {
-					pd->system->logToConsole("Writing to file with length %d", strlen(plaintext));
-					// pd->system->logToConsole(plaintext);
-					pd->file->write(file, plaintext, strlen(plaintext));
-				} else {
-					pd->system->logToConsole("Failed to open file for writing");
-				}
-				free(fileContents);
-				free(plaintext);
-
-				if (bytesRead < 0) {
-					pd->system->logToConsole("Error reading file %s", contentPath);
-				}
-
-				unzCloseCurrentFile(zHandle);
-			}
-			pd->file->close(file);
-		}
-		rc = unzCloseCurrentFile(zHandle);
-		unzClose(zHandle);
+		pd->system->logToConsole("Bad comment while unzipping: %d", rc);
+		return 0;
 	}
+
+	pd->system->logToConsole("Ebook unzipped successfully");
+
+	// Open the META-INF/container.xml file to read the path to the opf file
+	pd->system->logToConsole("Opening container.xml...");
+	char *containerPath = "META-INF/container.xml";
+	char *containerContents = readFileFromZip(zHandle, containerPath);
+	if (containerContents == NULL) {
+		pd->system->logToConsole("Could not locate container.xml within META-INF, invalid EPUB");
+		unzClose(zHandle);
+		return 0;
+	}
+	// Get the rootfile path
+	char *rootfilePath = getRootfile(containerContents, strlen(containerContents));
+	if (rootfilePath == NULL) {
+		pd->system->logToConsole("Could not locate rootfile within container.xml, invalid EPUB");
+		unzClose(zHandle);
+		return 0;
+	}
+	pd->system->logToConsole("Rootfile path: %s", rootfilePath);
+	free(containerContents);
+
+	// Open the opf file to read the manifest
+	pd->system->logToConsole("Opening rootfile at %s...", rootfilePath);
+	char *opfPath = rootfilePath;
+	char *opfContents = readFileFromZip(zHandle, opfPath);
+	if (opfContents == NULL) {
+		pd->system->logToConsole("File %s not found within archive", opfPath);
+		unzClose(zHandle);
+		return 0;
+	}
+
+	int contentPathCount = 0;
+	ContentPaths paths = getContentPaths(opfContents, strlen(opfContents), &contentPathCount);
+	char** contentPaths = paths.contentPaths;
+	char* tocPath = paths.tocPath;
+	free(opfContents);
+
+	// Get the prefix of the opf file path to use for reading the content files
+	char *opfPrefix = malloc(strlen(opfPath) + 1);
+	strcpy(opfPrefix, opfPath);
+	char *lastSlash = strrchr(opfPrefix, '/');
+	if (lastSlash != NULL) {
+		*lastSlash = '\0';
+	} else {
+		strcpy(opfPrefix, "");
+	}
+	// Add a slash to the prefix if it is not empty
+	if (strlen(opfPrefix) > 0) {
+		strcat(opfPrefix, "/");
+	}
+	pd->system->logToConsole("OPF prefix: %s", opfPrefix);
+
+	// Process table of contents (if provided by opf file)
+	// Only used for structure and navigation, not for content extraction
+	if (tocPath != NULL) {
+		// Prepend the prefix to the table of contents path
+		char tocFullPath[256];
+		strcpy(tocFullPath, opfPrefix);
+		strcat(tocFullPath, tocPath);
+		pd->system->logToConsole("Opening table of contents at %s...", tocFullPath);
+		char *tocContents = readFileFromZip(zHandle, tocFullPath);
+		if (tocContents == NULL) {
+			pd->system->logToConsole("File %s not found within archive", tocFullPath);
+		} else {
+			// File size print
+			int tocItemCount = 0;
+			TableOfContentsItem* tocItems = parseTableOfContents(tocContents, strlen(tocContents), &tocItemCount);
+			free(tocContents);
+
+			// Print the table of contents items
+			for (int i = 0; i < tocItemCount; i++) {
+				pd->system->logToConsole("TOC item %d: name=%s, path=%s", i, tocItems[i].name, tocItems[i].path);
+			}
+
+			// Free the table of contents items
+			for (int i = 0; i < tocItemCount; i++) {
+				free(tocItems[i].name);
+				free(tocItems[i].path);
+			}
+			free(tocItems);
+		}
+	}
+
+	// Print the content paths
+	for (int i = 0; i < contentPathCount; i++) {
+		pd->system->logToConsole("Content path %d: %s", i, contentPaths[i]);
+	}
+
+	// Store plaintext in a file called "plaintext.txt"
+	pd->file->unlink(outputFilename, 0);
+	pd->system->logToConsole("Opening file for writing: %s", outputFilename);
+	SDFile* file = pd->file->open(outputFilename, kFileAppend);
+
+	// Read the content of each file
+	for (int i = 1; i < contentPathCount; i++) {
+		// Create a variable for the path that concats "OEBPS/" and the content path
+		char contentPath[256];
+		strcpy(contentPath, opfPrefix);
+		strcat(contentPath, contentPaths[i]);
+		pd->system->logToConsole("Reading file: %s", contentPath);
+		char *fileContents = readFileFromZip(zHandle, contentPath);
+		if (fileContents == NULL) {
+			continue;
+		}
+
+		char *plaintext = htmlToPlaintext(fileContents, strlen(fileContents));
+		if (file) {
+			pd->system->logToConsole("Writing to file with length %d", strlen(plaintext));
+			pd->file->write(file, plaintext, strlen(plaintext));
+		} else {
+			pd->system->logToConsole("Failed to open file for writing");
+		}
+		free(fileContents);
+		free(plaintext);
+	}
+
+	pd->file->close(file);
+	unzClose(zHandle);
 	return 0;
 }
 
@@ -730,7 +960,7 @@ static const lua_reg zippoLib[] =
 	{ "getMinimum", zippo_getmin },
 	{ "getMaximum", zippo_getmax },
 	{ "getAverage", zippo_getavg },
-	{ "readEpub", zippo_readEpub },
+	{ "expandEpub", zippo_expandEpub },
 	{ NULL, NULL }
 };
 

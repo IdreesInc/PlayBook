@@ -792,6 +792,7 @@ int iCaseSensitivity;
 	while (err == UNZ_OK)
 	{
 		char szCurrentFileName[UNZ_MAXFILENAMEINZIP + 1];
+		// Print file path
 		unzGetCurrentFileInfo(file, NULL,
 							  szCurrentFileName, sizeof(szCurrentFileName) - 1,
 							  NULL, 0, NULL, 0);
