@@ -166,6 +166,9 @@ local textProgress = 0
 -- Whether the options menu is visible and active
 local menuActive = false
 
+local lastOffset = -1000
+local forceRedraw = false
+
 -- Menu
 -- The views for each option
 local optionViews = {}
@@ -425,6 +428,7 @@ function initLibrary()
 
 	-- Reset variables
 	offset = 0
+	lastOffset = -1000
 	directionHeld = 0
 
 	fallingBookProgress = 0 - DEVICE_HEIGHT * 4.75
@@ -485,6 +489,8 @@ function reloadReader()
 
 	-- Reset the crank position
 	offset = 0
+	-- Force the reader to redraw next frame
+	lastOffset = -1000;
 
 	-- Update the font
 	graphics.setFont(FONTS[readerFontId].font)
@@ -690,12 +696,14 @@ local drawText = function ()
 			local lineRange = ceil((drawOffset + 2 * lineHeight) / lineHeight)
 			-- lineRange = 1
 			removeLines(prependLines(lineRange), true)
+			forceRedraw = true
 		end
 		-- Detect end of text
 		if drawOffset + numOfLines * lineHeight < DEVICE_HEIGHT then
 			local lineRange = ceil((DEVICE_HEIGHT - (drawOffset + numOfLines * lineHeight)) / lineHeight)
 			-- lineRange = 1
 			removeLines(appendLines(lineRange), false)
+			forceRedraw = true
 		end
 	end
 	if progressIndicator == 2 then
@@ -937,7 +945,6 @@ function playdate.update()
 		end
 		drawLibrary()
 	elseif scene == READER then
-		drawText()
 		-- Update offset when the D-pad is held
 		offset = offset + directionHeld * BTN_SCROLL_SPEED
 		if menuActive or not playScrollSound then
@@ -951,6 +958,11 @@ function playdate.update()
 				-- Update the sound
 				sound:setVolume(vol)
 			end
+		end
+		if offset ~= lastOffset or forceRedraw then
+			forceRedraw = false
+			drawText()
+			lastOffset = offset
 		end
 	end
 	if menuActive then
@@ -1403,6 +1415,7 @@ function playdate.AButtonDown()
 		else
 			saveState()
 			menuActive = false
+			forceRedraw = true
 		end
 	end
 end
