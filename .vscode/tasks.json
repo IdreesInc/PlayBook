@@ -1,0 +1,40 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "type": "shell",
+            "command": "VER=\"$(grep -Po '(?<=buildNumber=)(.*)$' source/pdxinfo)\"; sed -i \"s/buildNumber=$VER/buildNumber=$((1+VER))/\" source/pdxinfo",
+            "label": "Playdate: Increment Build Number"
+        },
+        {
+            "type": "pdc",
+            "problemMatcher": ["$pdc-lua", "$pdc-external"],
+            "label": "Playdate: Build"
+        },
+        {
+            "type": "playdate-simulator",
+            "problemMatcher": ["$pdc-external"],
+            "label": "Playdate: Run"
+        },
+        {
+            "type": "shell",
+            "command": "[ -f build/PlayBook.pdx.zip ] && rm build/PlayBook.pdx.zip; zip -r build/PlayBook.pdx.zip build/PlayBook.pdx",
+            "label": "Playdate: Zip up"
+        },
+        {
+            "type": "shell",
+            "command": "[ -d $PLAYDATE_SDK_PATH/Disk/Games/PlayBook.pdx ] && rm -rf $PLAYDATE_SDK_PATH/Disk/Games/PlayBook.pdx; cp -r build/PlayBook.pdx $PLAYDATE_SDK_PATH/Disk/Games/PlayBook.pdx",
+            "label": "Playdate: Copy"
+        },
+        {
+            "label": "Playdate: Build and Run",
+            "dependsOn": ["Playdate: Increment Build Number", "Playdate: Build", "Playdate: Copy", "Playdate: Run"],
+            "dependsOrder": "sequence",
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

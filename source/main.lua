@@ -27,7 +27,7 @@ local MAX_VOLUME <const> = 0.025
 -- The speed of scrolling via the crank
 local CRANK_SCROLL_SPEED <const> = 1.2
 -- The speed of scrolling via the D-pad
-local BTN_SCROLL_SPEED <const> = 6
+local BTN_SCROLL_SPEED <const> = 300
 local MARGIN_WITH_BORDER <const> = 22
 local MARGIN_WITHOUT_BORDER <const> = 6
 local BOOK_SEPARATION <const> = 42
@@ -80,6 +80,12 @@ local DEFAULT_BOOKS <const> = {
 	"Frankenstein.txt",
 	"The Great Gatsby.txt",
 }
+-- 
+local readingOrientation = 1
+function isHorizontal() return readingOrientation == 1 or readingOrientation == 4 end
+function rotationDegrees() if readingOrientation == 1 then return 0 elseif readingOrientation == 2 then return 90 elseif readingOrientation == 3 then return 270 else return 180 end end
+function height() return isHorizontal() and DEVICE_HEIGHT or DEVICE_WIDTH end
+function width() return isHorizontal() and DEVICE_WIDTH or DEVICE_HEIGHT end
 
 -- Shared
 -- The current scene being displayed
@@ -294,6 +300,24 @@ local MENU_OPTIONS <const> = {
 			end
 		end
 	},
+	{
+		label = "Orientation",
+		options =  {
+			"Horizontal",
+			"Vertical (Left)",
+			"Vertical (Right)",
+			"Upside Down"
+		},
+		initialValue = function ()
+			return readingOrientation
+		end,
+		callback = function (index)
+			readingOrientation = index
+			if scene == READER then
+				reloadReader()
+			end
+		end
+	},
 }
 
 -- Generate the options for the reader font menu
@@ -350,6 +374,7 @@ local saveState = function ()
 	state.progressIndicator = progressIndicator
 	state.playScrollSound = playScrollSound
 	state.showDefaultBooks = showDefaultBooks
+	state.readingOrientation = readingOrientation
 	playdate.datastore.write(state)
 	print("State saved!")
 	-- print("State saved: " .. json.encode(state))
@@ -372,6 +397,7 @@ local loadState = function ()
 	setProgressIndicator(getOrDefault(state, "progressIndicator", "number", progressIndicator))
 	playScrollSound = getOrDefault(state, "playScrollSound", "boolean", playScrollSound)
 	showDefaultBooks = getOrDefault(state, "showDefaultBooks", "boolean", showDefaultBooks)
+	readingOrientation = getOrDefault(state, "readingOrientation", "number", readingOrientation)
 end
 
 local loadCurrentBookSettings = function ()
@@ -602,8 +628,8 @@ end
 
 -- Draw a candle to the side of the text to indicate progress
 local drawCandle = function ()
-	local TOP = textProgress * (DEVICE_HEIGHT - candleTop.height - 10 - candleHolder.height) + 4
-	local LEFT = DEVICE_WIDTH - 1 - candleSection.width
+	local TOP = textProgress * (height() - candleTop.height - 10 - candleHolder.height) + 4
+	local LEFT = width() - 1 - candleSection.width
 	-- Draw the top of the candle
 	candleTop:draw(LEFT, TOP)
 	-- Draw the flame flickering
@@ -621,31 +647,31 @@ local drawCandle = function ()
 	end
 	flame:draw(LEFT, TOP)
 	-- Draw the candle length
-	local sections = floor((DEVICE_HEIGHT - TOP - candleTop.height) / candleSection.height) + 1
+	local sections = floor((height() - TOP - candleTop.height) / candleSection.height) + 1
 	for i = 1, sections do
 		candleSection:draw(LEFT, TOP + candleTop.height + (i - 1) * candleSection.height)
 	end
 	-- Draw the holder
-	candleHolder:draw(LEFT, DEVICE_HEIGHT - candleHolder.height)
+	candleHolder:draw(LEFT, height() - candleHolder.height)
 	-- Draw the drips
-	local bottom = DEVICE_HEIGHT - candleDripLeft.height + 4 - candleHolder.height
+	local bottom = height() - candleDripLeft.height + 4 - candleHolder.height
 	candleDripLeft:draw(LEFT, min(bottom, TOP + 40 + textProgress * 115))
 	candleDripRight:draw(LEFT + candleSection.width - candleDripRight.width, min(bottom, TOP + 90 + textProgress * 20))
 end
 
 local drawScrollbar = function ()
 	local VERT_MARGIN = 2
-	local LEFT = DEVICE_WIDTH - 2 - scrollbarSection.width
+	local LEFT = width() - 2 - scrollbarSection.width
 	-- Draw the top arrow
 	scrollbarButton:draw(LEFT, VERT_MARGIN)
 	scrollbarArrow:draw(LEFT + 2, VERT_MARGIN + 2)
 	-- Draw the scrollbar length
-	for i = 1, 17 do
+	for i = 1, isHorizontal() and 17 or 31 do
 		scrollbarSection:draw(LEFT, VERT_MARGIN + scrollbarButton.height + (i - 1) * scrollbarSection.height)
 	end
 	-- Draw the bottom arrow
-	scrollbarButton:draw(LEFT, DEVICE_HEIGHT - VERT_MARGIN - scrollbarButton.height)
-	scrollbarArrow:draw(LEFT + 2, DEVICE_HEIGHT - VERT_MARGIN - scrollbarButton.height + 3, graphics.kImageFlippedY)
+	scrollbarButton:draw(LEFT, height() - VERT_MARGIN - scrollbarButton.height)
+	scrollbarArrow:draw(LEFT + 2, height() - VERT_MARGIN - scrollbarButton.height + 3, graphics.kImageFlippedY)
 	-- Draw the slider
 	local progress = textProgress
 	if progress <= 0.01 then
@@ -653,7 +679,7 @@ local drawScrollbar = function ()
 	elseif progress >= 0.99 then
 		progress = 1
 	end
-	local sliderY = VERT_MARGIN + scrollbarButton.height + floor(progress * (DEVICE_HEIGHT - VERT_MARGIN * 2 - scrollbarButton.height * 2 - scrollbarSlider.height))
+	local sliderY = VERT_MARGIN + scrollbarButton.height + floor(progress * (height() - VERT_MARGIN * 2 - scrollbarButton.height * 2 - scrollbarSlider.height))
 	scrollbarSlider:draw(LEFT + 1, sliderY)
 end
 
@@ -663,11 +689,13 @@ local drawText = function ()
 	graphics.setFont(FONTS[readerFontId].font)
 	-- Draw offset for debugging
 	-- graphics.drawText(playdate.getCrankPosition(), leftMargin, offset)
+	local img = graphics.image.new(width(), height())
+	graphics.pushContext(img)
 	if #lines > 0 then
 		-- Calculate where to begin drawing lines
 		local drawOffset = floor(offset) + emptyLinesAbove * lineHeight
 		local numOfLines = #lines
-		local lineEnd = min(ceil((DEVICE_HEIGHT - drawOffset) / lineHeight), numOfLines)
+		local lineEnd = min(ceil((height() - drawOffset) / lineHeight), numOfLines)
 		local topLineStart = nil
 		local topLineStop = nil
 		for i = 1, lineEnd do
@@ -692,8 +720,8 @@ local drawText = function ()
 			removeLines(prependLines(lineRange), true)
 		end
 		-- Detect end of text
-		if drawOffset + numOfLines * lineHeight < DEVICE_HEIGHT then
-			local lineRange = ceil((DEVICE_HEIGHT - (drawOffset + numOfLines * lineHeight)) / lineHeight)
+		if drawOffset + numOfLines * lineHeight < height() then
+			local lineRange = ceil((height() - (drawOffset + numOfLines * lineHeight)) / lineHeight)
 			-- lineRange = 1
 			removeLines(appendLines(lineRange), false)
 		end
@@ -703,6 +731,31 @@ local drawText = function ()
 	elseif progressIndicator == 3 then
 		drawScrollbar()
 	end
+	graphics.popContext()
+	if not isHorizontal() then img = rotateImg90(img) end
+	if readingOrientation <= 2 then
+		img:draw(0, 0)
+	else
+		img:drawRotated(DEVICE_WIDTH / 2, DEVICE_HEIGHT / 2, 180)
+	end
+end
+
+-- rotating an entire image 90 degrees using the default image rotation functions is super slow on rev b, so split the image into chunks then rotate them all
+-- this doesnt optimise it enough so that the app runs at full 50fps speed, i'm sure there's a way to do so though
+function rotateImg90(img)
+	local newImg = graphics.image.new(img.height, img.width)
+	for x = 0, newImg.height / 200 do
+		for y = 0, newImg.width / 120 do
+			local segment = graphics.image.new(120, 200)
+			graphics.pushContext(segment)
+			img:draw(0, 0, graphics.kImageUnflipped, playdate.geometry.rect.new(segment.width * x, segment.height * y, segment.width, segment.height))
+			graphics.popContext()
+			graphics.pushContext(newImg)
+			segment:drawRotated(newImg.width - y * segment.height - segment.height / 2, x * segment.width + segment.width / 2, 90)
+			graphics.popContext()
+		end
+	end
+	return newImg
 end
 
 -- Draw an individual book
@@ -877,6 +930,8 @@ end
 
 -- Update loop
 function playdate.update()
+	local delta = playdate.getElapsedTime()
+	playdate.resetElapsedTime()
 	if scene == LIBRARY then
 		local folderSwitched = false
 		if playdate.buttonJustPressed(playdate.kButtonLeft) then
@@ -939,7 +994,7 @@ function playdate.update()
 	elseif scene == READER then
 		drawText()
 		-- Update offset when the D-pad is held
-		offset = offset + directionHeld * BTN_SCROLL_SPEED
+		offset = offset + directionHeld * BTN_SCROLL_SPEED * delta
 		if menuActive or not playScrollSound then
 			sound:setVolume(0)
 		else
@@ -1086,8 +1141,6 @@ end
 -- Add the given number of lines to the list
 -- Note that if there are no more lines available, less than the given number of lines will be returned
 function addLines(additionalLines, append, startChar)
-	-- Keep track of time taken
-	playdate.resetElapsedTime()
 	if text == nil then
 		print("Error: text is nil")
 		return
@@ -1148,7 +1201,7 @@ function addLines(additionalLines, append, startChar)
 	end
 
 	-- The max width in pixels that a line can be
-	local MAX_WIDTH <const> = DEVICE_WIDTH - leftMargin - rightMargin
+	local MAX_WIDTH <const> = width() - leftMargin - rightMargin
 	-- The text of the current line as it is processed
 	local currentLine = ""
 	-- The index of the first character of the current line
@@ -1337,14 +1390,35 @@ function playdate.cranked(change, acceleratedChange)
 	end
 end
 
+function up()
+	if not menuActive then
+		directionHeld = 1
+	end
+end
+function down()
+	if not menuActive then
+		directionHeld = -1
+	end
+end
+function right()
+	if scene == READER then
+		directionHeld = -6
+	end
+end
+function left()
+	if scene == READER then
+		directionHeld = 6
+	end
+end
+
 function playdate.upButtonDown()
-	-- print("up")
 	if scene == LIBRARY then
 		offset = offset + BOOK_OFFSET_SIZE
 	else
-		if not menuActive then
-			directionHeld = 1
-		end
+		if readingOrientation == 1 then up()
+		elseif readingOrientation == 2 then left()
+		elseif readingOrientation == 3 then right()
+		elseif readingOrientation == 4 then down() end
 	end
 end
 
@@ -1353,13 +1427,13 @@ function playdate.upButtonUp()
 end
 
 function playdate.downButtonDown()
-	-- print("down")
 	if scene == LIBRARY then
 		offset = offset - BOOK_OFFSET_SIZE
 	else
-		if not menuActive then
-			directionHeld = -1
-		end
+		if readingOrientation == 1 then down()
+		elseif readingOrientation == 2 then right()
+		elseif readingOrientation == 3 then left()
+		elseif readingOrientation == 4 then up() end
 	end
 end
 
@@ -1368,9 +1442,11 @@ function playdate.downButtonUp()
 end
 
 function playdate.leftButtonDown()
-	-- print("left")
 	if scene == READER then
-		directionHeld = 6
+		if readingOrientation == 1 then left()
+		elseif readingOrientation == 2 then down()
+		elseif readingOrientation == 3 then up()
+		elseif readingOrientation == 4 then right() end
 	end
 end
 
@@ -1379,9 +1455,11 @@ function playdate.leftButtonUp()
 end
 
 function playdate.rightButtonDown()
-	-- print("right")
 	if scene == READER then
-		directionHeld = -6
+		if readingOrientation == 1 then right()
+		elseif readingOrientation == 2 then up()
+		elseif readingOrientation == 3 then down()
+		elseif readingOrientation == 4 then left() end
 	end
 end
 

@@ -1,0 +1,22 @@
+{
+  "Lua.runtime.version": "Lua 5.4",
+  "Lua.diagnostics.disable": [
+    "undefined-global",
+    "lowercase-global",
+    "undefined-field",
+    "need-check-nil",
+    "deprecated",
+    "param-type-mismatch",
+    "duplicate-set-field",
+    "inject-field",
+    "cast-local-type",
+    "trailing-space"
+  ],
+  "Lua.diagnostics.globals": ["playdate", "import"],
+  "Lua.runtime.nonstandardSymbol": ["+=", "-=", "*=", "/=", "//=", "%=", "<<=", ">>=", "&=", "|=", "^="],
+  "Lua.workspace.library": ["~/code/playdate-luacats"],
+  "Lua.workspace.preloadFileSize": 1000,
+  "playdate-debug.sourcePath": "source",
+  "playdate-debug.outputPath": "./build/",
+  "playdate-debug.productName": "PlayBook"
+}
